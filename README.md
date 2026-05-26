@@ -10,10 +10,10 @@ It's designed to be opened on a laptop in a sales meeting and walked through liv
 
 ## 🚀 Live Demo
 
-**[Open the demo →](https://your-netlify-url.netlify.app)**
+**[Open the demo →](https://agent-architect-trades.netlify.app)**
 *(replace this link after you deploy)*
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/TipTopflipflop/agent-architect-trades)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/YOUR-USERNAME/agent-architect)
 
 ---
 
@@ -40,8 +40,8 @@ To build the **live API-driven version** (real Claude calls, novel businesses, d
 
 ### Option 1: Just open it
 ```bash
-git clone https://github.com/TipTopflipflop/agent-architect-trades.git
-cd agent-architect-trades
+git clone https://github.com/YOUR-USERNAME/agent-architect.git
+cd agent-architect
 open index.html
 ```
 
