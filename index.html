@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Agent Architect</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #020617; font-family: 'Inter', system-ui, sans-serif; color: white; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+select, option { background: #1e293b; color: white; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.3s ease; }
+</style>
+</head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback, useMemo, useEffect } = React;
+
+// ── Icons ──────────────────────────────────────────────────────────────────
+const I = ({d,c,size=16,color="currentColor",style:s,className:cn=""}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    style={{display:"inline-block",verticalAlign:"middle",flexShrink:0,...s}} className={cn}>
+    {d&&<path d={d}/>}{c}
+  </svg>
+);
+const Cpu      = p=><I {...p} c={<><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M9 2v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></>}/>;
+const Bot      = p=><I {...p} c={<><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 15h.01M12 15h.01M16 15h.01"/></>}/>;
+const Search   = p=><I {...p} c={<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>}/>;
+const Plus     = p=><I d="M5 12h14M12 5v14" {...p}/>;
+const Trash    = p=><I {...p} c={<><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>}/>;
+const ChevD    = p=><I d="m6 9 6 6 6-6" {...p}/>;
+const ChevU    = p=><I d="m18 15-6-6-6 6" {...p}/>;
+const Zap      = p=><I d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" {...p}/>;
+const Wrench   = p=><I d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p}/>;
+const Flask    = p=><I {...p} c={<><path d="M9 3h6M5 22h14M14 3v8l4 7H6l4-7V3"/></>}/>;
+const Board    = p=><I {...p} c={<><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></>}/>;
+const Play     = p=><I {...p} c={<><polygon points="6 3 20 12 6 21 6 3"/></>}/>;
+const Check    = p=><I {...p} c={<><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></>}/>;
+const XCirc    = p=><I {...p} c={<><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></>}/>;
+const Clock    = p=><I {...p} c={<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>}/>;
+const Globe    = p=><I {...p} c={<><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></>}/>;
+const DB       = p=><I {...p} c={<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></>}/>;
+const FileT    = p=><I {...p} c={<><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8M16 13H8M16 17H8"/></>}/>;
+const Term     = p=><I {...p} c={<><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></>}/>;
+const Send     = p=><I {...p} c={<><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></>}/>;
+const Spin     = p=><I {...p} c={<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></>}/>;
+const Layers   = p=><I {...p} c={<><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></>}/>;
+const PenLine  = p=><I {...p} c={<><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></>}/>;
+const Edit3    = p=><I {...p} c={<><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>}/>;
+const Save     = p=><I {...p} c={<><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></>}/>;
+const X        = p=><I d="M18 6 6 18M6 6l12 12" {...p}/>;
+const Alert    = p=><I {...p} c={<><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></>}/>;
+const ArrowR   = p=><I {...p} c={<><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></>}/>;
+const ArrowL   = p=><I {...p} c={<><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></>}/>;
+const Sparkles = p=><I {...p} c={<><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4M19 17v4M3 5h4M17 19h4"/></>}/>;
+const Hammer   = p=><I {...p} c={<><path d="m15 12-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/></>}/>;
+const Copy     = p=><I {...p} c={<><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></>}/>;
+const MapPin   = p=><I {...p} c={<><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></>}/>;
+const Phone    = p=><I {...p} c={<><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.06 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></>}/>;
+const Star     = p=><I {...p} c={<><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>}/>;
+const Msg      = p=><I d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...p}/>;
+const Code2    = p=><I {...p} c={<><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></>}/>;
+const Settings = p=><I {...p} c={<><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></>}/>;
+
+// ── Service Categories ──────────────────────────────────────────────────────
+const TRADE_CATS = {
+  "🔧 Home Services": [
+    "Plumbing","Electrical","HVAC / Air Conditioning","Roofing","General Contractor",
+    "Painting","Flooring Installation","Landscaping & Lawn Care","Tree Service",
+    "Pest Control","Pool & Spa Service","Garage Door Service","Locksmith",
+    "Window & Door Installation","Siding & Gutters","Concrete & Masonry",
+    "Handyman Services","House Cleaning","Carpet Cleaning","Pressure Washing",
+    "Appliance Repair","Fence Installation","Deck & Patio Construction","Solar Installation",
+    "Home Inspection","Moving Company",
+  ],
+  "🚗 Automotive": [
+    "Auto Repair & Mechanic","Auto Body & Collision","Tire Shop","Car Wash & Detailing",
+    "Oil Change Service","Transmission Repair","Brake Service","Auto Glass Repair",
+    "Towing Service","RV & Trailer Repair",
+  ],
+  "🏥 Healthcare & Wellness": [
+    "Family Doctor / Primary Care","Dentist","Orthodontist","Chiropractor",
+    "Physical Therapy","Optometrist / Eye Doctor","Dermatologist","Pediatrician",
+    "OB/GYN","Mental Health / Therapist","Urgent Care Clinic","Veterinarian",
+    "Acupuncture","Nutritionist / Dietitian","Podiatrist","Cardiologist",
+    "Orthopedic Surgeon","Hearing Aid Center","Sleep Clinic","Pharmacy",
+  ],
+  "💇 Personal Services": [
+    "Hair Salon","Barbershop","Nail Salon","Day Spa & Massage","Tattoo & Piercing",
+    "Personal Trainer","Yoga Studio","Martial Arts & Fitness","Tanning Salon",
+    "Alterations & Tailor","Dry Cleaning","Pet Grooming",
+  ],
+  "🍕 Food & Hospitality": [
+    "Restaurant","Pizza Shop","Food Truck","Catering Service","Bakery",
+    "Coffee Shop & Café","Bar & Pub","Meal Prep / Delivery","Food Distributor",
+  ],
+  "👔 Professional Services": [
+    "Law Firm / Attorney","Accounting & CPA","Insurance Agency","Real Estate Agent",
+    "Mortgage Broker","Financial Advisor","Marketing Agency","IT Support & MSP",
+    "Photography Studio","Event Planning","Travel Agency","Staffing Agency",
+    "Business Consulting","Notary Public",
+  ],
+  "🛍️ Retail & Specialty": [
+    "Auto Parts Store","Hardware Store","Pet Store","Flower Shop & Florist",
+    "Jewelry Store","Furniture Store","Bike Shop","Music Store & Lessons",
+    "Tutoring & Education","Sporting Goods","Pawn Shop","Thrift Store",
+  ],
+  "❤️ Care & Support": [
+    "Home Health Care","Senior Living & Memory Care","Childcare & Daycare",
+    "Special Needs Services","Addiction Recovery Center","Hospice Care",
+    "Assisted Living","Adult Day Care",
+  ],
+};
+
+const ALL_TRADES = Object.values(TRADE_CATS).flat();
+
+// ── Seeded Random & Business Generation ────────────────────────────────────
+const seeded = (seed) => { let x=Math.sin(seed+1)*10000; return x-Math.floor(x); };
+const pick   = (arr, s) => arr[Math.floor(seeded(s)*arr.length)];
+
+const FIRST = ["Mike","John","Steve","Bob","Tom","Dave","Chris","Jim","Paul","Gary","Rick","Larry","Frank","Dan","Joe","Ray","Ed","Pete","Mark","Scott","Brian","Kevin","Tony","Carlos","Sam"];
+const LAST  = ["Johnson","Smith","Williams","Brown","Jones","Miller","Davis","Wilson","Taylor","Anderson","Thomas","Jackson","White","Harris","Martin","Garcia","Lee","Walker","Hall","Allen"];
+const STREETS = ["Main St","Oak Ave","Elm St","Maple Dr","Washington Blvd","Park Ave","Cedar Ln","Pine St","Lake Dr","River Rd","Hill Rd","Mill St","Church St","Spring St","Sunset Blvd","Industrial Dr","Commerce Way","Heritage Pkwy","Summit Ave","Valley Rd"];
+const NAME_PATS = [
+  (c,t,f,l)=>`${c} ${t}`,
+  (c,t,f,l)=>`${f}'s ${t} Services`,
+  (c,t,f,l)=>`${f} & Sons ${t}`,
+  (c,t,f,l)=>`${l} ${t} Co.`,
+  (c,t,f,l)=>`Premier ${t}`,
+  (c,t,f,l)=>`All-Star ${t}`,
+  (c,t,f,l)=>`${t} Experts`,
+  (c,t,f,l)=>`${c} ${t} Pros`,
+  (c,t,f,l)=>`Top Notch ${t}`,
+  (c,t,f,l)=>`${f} ${l} ${t}`,
+  (c,t,f,l)=>`Reliable ${t}`,
+  (c,t,f,l)=>`${t} Masters`,
+  (c,t,f,l)=>`${f}'s ${t}`,
+  (c,t,f,l)=>`${c} ${t} Solutions`,
+  (c,t,f,l)=>`Pro ${t}`,
+  (c,t,f,l)=>`A+ ${t}`,
+  (c,t,f,l)=>`${l} & Associates`,
+  (c,t,f,l)=>`${t} Plus`,
+  (c,t,f,l)=>`Expert ${t}`,
+  (c,t,f,l)=>`${f}'s Quality ${t}`,
+];
+
+const generateBusinesses = (city, trade, count=60) => {
+  const citySlug = city.toLowerCase().replace(/[^a-z]/g,'');
+  const tradeSlug = trade.toLowerCase().replace(/[^a-z]/g,'');
+  return Array.from({length:count}, (_,i) => {
+    const s = i * 137 + citySlug.charCodeAt(0) * 31 + tradeSlug.charCodeAt(0) * 17;
+    const fn = pick(FIRST, s+1), ln = pick(LAST, s+2);
+    const pat = pick(NAME_PATS, s+3);
+    const tradeShort = trade.split('/')[0].split('&')[0].trim();
+    const num = Math.floor(seeded(s+4)*8999)+1000;
+    const rating = Math.round((3.7+seeded(s+5)*1.3)*10)/10;
+    const reviews = Math.floor(seeded(s+6)*990)+10;
+    const areaCode = Math.floor(seeded(s+7)*800)+200;
+    const phone1 = Math.floor(seeded(s+8)*900)+100;
+    const phone2 = Math.floor(seeded(s+9)*9000)+1000;
+    return {
+      id: `biz-${i}-${citySlug}`,
+      name: pat(city.split(',')[0], tradeShort, fn, ln),
+      address: `${num} ${pick(STREETS,s+10)}, ${city}`,
+      phone: `(${areaCode}) ${phone1}-${phone2}`,
+      rating, reviews,
+      trade, city,
+    };
+  });
+};
+
+// ── Agent Template Generation ───────────────────────────────────────────────
+const mkId = () => Math.random().toString(36).slice(2,9);
+
+const CATS = {
+  HOME:["Plumbing","Electrical","HVAC / Air Conditioning","Roofing","General Contractor","Painting","Flooring Installation","Landscaping & Lawn Care","Tree Service","Pest Control","Pool & Spa Service","Garage Door Service","Locksmith","Window & Door Installation","Siding & Gutters","Concrete & Masonry","Handyman Services","House Cleaning","Carpet Cleaning","Pressure Washing","Appliance Repair","Fence Installation","Deck & Patio Construction","Solar Installation","Home Inspection","Moving Company"],
+  AUTO:["Auto Repair & Mechanic","Auto Body & Collision","Tire Shop","Car Wash & Detailing","Oil Change Service","Transmission Repair","Brake Service","Auto Glass Repair","Towing Service","RV & Trailer Repair"],
+  HEALTH:["Family Doctor / Primary Care","Dentist","Orthodontist","Chiropractor","Physical Therapy","Optometrist / Eye Doctor","Dermatologist","Pediatrician","OB/GYN","Mental Health / Therapist","Urgent Care Clinic","Veterinarian","Acupuncture","Nutritionist / Dietitian","Podiatrist","Cardiologist","Orthopedic Surgeon","Hearing Aid Center","Sleep Clinic","Pharmacy"],
+  PERSONAL:["Hair Salon","Barbershop","Nail Salon","Day Spa & Massage","Tattoo & Piercing","Personal Trainer","Yoga Studio","Martial Arts & Fitness","Tanning Salon","Alterations & Tailor","Dry Cleaning","Pet Grooming"],
+  FOOD:["Restaurant","Pizza Shop","Food Truck","Catering Service","Bakery","Coffee Shop & Café","Bar & Pub","Meal Prep / Delivery","Food Distributor"],
+  PROFESSIONAL:["Law Firm / Attorney","Accounting & CPA","Insurance Agency","Real Estate Agent","Mortgage Broker","Financial Advisor","Marketing Agency","IT Support & MSP","Photography Studio","Event Planning","Travel Agency","Staffing Agency","Business Consulting","Notary Public"],
+};
+
+const getCat = (trade) => {
+  for(const [k,v] of Object.entries(CATS)) if(v.includes(trade)) return k;
+  return "GENERAL";
+};
+
+const generateAgents = (biz) => {
+  const {name,trade,city,phone} = biz;
+  const cat = getCat(trade);
+
+  const TOOL_IDS = {
+    crm:"crm_api", cal:"calendar_api", sms:"slack_send", web:"web_search", file:"file_read", db:"db_query"
+  };
+
+  const templates = {
+    HOME: {
+      agents:[
+        {
+          name:"Booking & Service Agent",
+          description:`Handles inbound inquiries on the website — answers questions about ${trade} services, provides ballpark pricing, and books appointments.`,
+          systemPrompt:`You are a friendly virtual assistant for ${name}, a ${trade} company in ${city}.\n\nYour job:\n1. Greet customers warmly and identify what they need\n2. Answer common questions about ${trade} services and pricing\n3. Collect their name, address, phone number, and description of the issue\n4. Check available appointment slots and book the job\n5. Send a confirmation with technician name and arrival window\n\nAlways:\n- Give price RANGES, never exact quotes — say the tech will confirm on-site\n- Collect name + address + phone BEFORE booking\n- If the customer describes flooding, gas smell, or electrical hazard → treat as EMERGENCY and give the 24/7 line: ${phone}\n- Be warm, never pushy`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Customer Contacts Website Chat",   desc:"Customer sends a message via the chat widget"},
+            {id:mkId(),type:"action",  label:"Identify Request Type",             desc:"Classify: booking, pricing question, emergency, or general inquiry"},
+            {id:mkId(),type:"decision",label:"Emergency?",                        desc:"Flag urgent keywords (flooding, no heat, burst pipe) → route to emergency line"},
+            {id:mkId(),type:"action",  label:"Collect Customer Info",             desc:"Ask for name, service address, phone, and issue description"},
+            {id:mkId(),type:"tool",    label:"Look Up in CRM",                    desc:"Check if existing customer, pull address and service history", tool:"crm_api"},
+            {id:mkId(),type:"tool",    label:"Check Appointment Availability",    desc:"Query calendar for open slots in the next 3 business days", tool:"calendar_api"},
+            {id:mkId(),type:"action",  label:"Offer Time Slots & Confirm",        desc:"Present 2–3 windows, confirm selection"},
+            {id:mkId(),type:"tool",    label:"Book & Update CRM",                 desc:"Create the appointment and update/create customer record", tool:"crm_api"},
+            {id:mkId(),type:"tool",    label:"Send Confirmation SMS",             desc:"Text the customer: date, arrival window, tech name", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Chat Confirmation",                 desc:"Reply in chat with booking summary and emergency line"},
+          ],
+          tools:["crm_api","calendar_api","slack_send","web_search"],
+          evals:[
+            {id:mkId(),input:`How much does it cost to fix a leaky faucet?`,expected:`Give a price range, not an exact quote. Offer to book an appointment.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`My pipe just burst, water everywhere!`,expected:`Treat as emergency. Give 24/7 emergency line immediately. Stay calm and helpful.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`Can I get someone out this Saturday?`,expected:`Check Saturday availability, collect name/address/phone, confirm booking.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`I booked last week, can I reschedule to Friday?`,expected:`Look up customer in CRM, find their booking, offer available Friday slots.`,result:"",status:"pending",score:null},
+          ],
+        },
+        {
+          name:"Emergency Dispatch Agent",
+          description:`Handles after-hours and emergency calls 24/7 — triages the situation, dispatches the on-call tech, and keeps the customer calm.`,
+          systemPrompt:`You are the after-hours emergency dispatcher for ${name}. You are on 24/7.\n\nYour ONLY job:\n1. Keep the customer calm\n2. Ask 2–3 triage questions quickly\n3. Give immediate safety instructions\n4. Dispatch the on-call technician\n5. Confirm ETA (typically 45–90 minutes)\n\nTriage questions:\n- Can you shut off the main valve / breaker / gas line?\n- Is there any electrical or structural risk?\n- What is your exact address?\n\nDispatch rules:\n- Always get address BEFORE dispatching\n- After-hours dispatch fee: collect on-site\n- Check CRM — repeat customers may have notes or special rates\n\nTone: calm, authoritative, reassuring. This person is stressed.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Emergency / After-Hours Contact",  desc:"Customer reaches the emergency line by phone, SMS, or after-hours chat"},
+            {id:mkId(),type:"action",  label:"Triage",                            desc:"Ask 3 targeted questions to assess severity and safety"},
+            {id:mkId(),type:"decision",label:"Life Safety Risk?",                 desc:"Electrical danger, gas smell, structural collapse → direct to 911 first"},
+            {id:mkId(),type:"action",  label:"Immediate Safety Instructions",     desc:"Tell customer exactly what to do right now before tech arrives"},
+            {id:mkId(),type:"tool",    label:"Look Up in CRM",                    desc:"Check for repeat customer, notes, special rates", tool:"crm_api"},
+            {id:mkId(),type:"tool",    label:"Dispatch On-Call Tech",             desc:"SMS the on-call technician: customer name, address, issue, urgency", tool:"slack_send"},
+            {id:mkId(),type:"action",  label:"Confirm ETA",                       desc:"Give customer tech's name and 45–90 min ETA, confirm dispatch fee"},
+            {id:mkId(),type:"tool",    label:"Log Emergency in CRM",              desc:"Create emergency job record with triage notes and dispatch time", tool:"crm_api"},
+            {id:mkId(),type:"output",  label:"Closing Message",                   desc:"Confirm everything handled, give tech name, ETA, callback number"},
+          ],
+          tools:["crm_api","slack_send"],
+          evals:[
+            {id:mkId(),input:`It's 2am, my basement is flooding!`,expected:`Calm tone. Immediate shutoff instructions. Get address. Dispatch. Give ETA.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`I smell gas near my furnace`,expected:`Tell them to leave the house immediately and call gas company/911 first.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`No hot water and it's freezing`,expected:`Assess urgency (family? medical need?). Give water heater shutoff instructions. Dispatch or schedule.`,result:"",status:"pending",score:null},
+          ],
+        },
+      ],
+    },
+    AUTO: {
+      agents:[
+        {
+          name:"Service Scheduling Agent",
+          description:`Books service appointments, answers questions about repairs and pricing, and collects vehicle info upfront.`,
+          systemPrompt:`You are a service advisor assistant for ${name}, a ${trade} shop in ${city}.\n\nYour job:\n1. Answer questions about services and general pricing ranges\n2. Schedule service appointments\n3. Collect: customer name, phone, vehicle make/model/year/mileage, description of issue\n4. Set realistic expectations — a full estimate requires inspection\n5. Send appointment confirmations\n\nBe direct and transparent. Car customers value honesty above all else. Never overpromise on price or repair time.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Customer Inquiry",             desc:"Customer reaches out via website chat, phone, or text"},
+            {id:mkId(),type:"action",  label:"Identify Service Needed",      desc:"Understand the vehicle issue or service type requested"},
+            {id:mkId(),type:"action",  label:"Collect Vehicle & Customer Info",desc:"Name, phone, year/make/model, mileage, issue description"},
+            {id:mkId(),type:"tool",    label:"Check CRM for History",        desc:"Look up prior service records for this vehicle", tool:"crm_api"},
+            {id:mkId(),type:"tool",    label:"Check Shop Availability",      desc:"Find open drop-off slots in the schedule", tool:"calendar_api"},
+            {id:mkId(),type:"action",  label:"Give Price Range & Book",      desc:"Provide ballpark range, book the appointment, set expectations"},
+            {id:mkId(),type:"tool",    label:"Send Confirmation",            desc:"SMS confirmation with date, time, and what to bring", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Booking Summary",              desc:"Confirm appointment details in chat"},
+          ],
+          tools:["crm_api","calendar_api","slack_send"],
+          evals:[
+            {id:mkId(),input:`My check engine light came on. How much to diagnose?`,expected:`Give diagnostic fee range, explain what's included, offer to book.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`Need an oil change for my 2019 F-150`,expected:`Confirm oil type (conventional vs synthetic), give price range, book appointment.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`My brakes are grinding really bad, is this an emergency?`,expected:`Advise them not to drive if unsafe. Offer earliest available appointment or tow.`,result:"",status:"pending",score:null},
+          ],
+        },
+        {
+          name:"Estimate & FAQ Agent",
+          description:`Handles estimate requests, common repair questions, and follow-ups after service — collects reviews and return business.`,
+          systemPrompt:`You are a customer service assistant for ${name}. You help customers get rough estimates and answers to common questions.\n\nAlways remind customers that exact pricing requires an in-person inspection. Never guarantee a specific price.\n\nAfter completed repairs, follow up to:\n- Confirm they're satisfied\n- Ask for a Google review\n- Remind them of upcoming maintenance needs`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Estimate Request or Follow-Up", desc:"Customer asks for a quote or was recently serviced"},
+            {id:mkId(),type:"action",  label:"Collect Details",               desc:"Gather enough info to give a meaningful range"},
+            {id:mkId(),type:"action",  label:"Provide Estimate Range",        desc:"Give low/high range with clear caveats"},
+            {id:mkId(),type:"decision",label:"Recent Customer?",              desc:"If service was completed in last 7 days → trigger review request flow"},
+            {id:mkId(),type:"tool",    label:"Send Review Request",           desc:"Text a Google review link to satisfied customers", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Response",                      desc:"Answer estimate question or send follow-up message"},
+          ],
+          tools:["slack_send","crm_api"],
+          evals:[
+            {id:mkId(),input:`How much for a transmission replacement on a 2015 Honda Accord?`,expected:`Give a realistic range ($1,800–$3,500), explain variables, offer to book for inspection.`,result:"",status:"pending",score:null},
+          ],
+        },
+      ],
+    },
+    HEALTH: {
+      agents:[
+        {
+          name:"Patient Scheduling Agent",
+          description:`Books new patient and follow-up appointments, collects insurance info, and answers questions about the practice.`,
+          systemPrompt:`You are a patient coordinator for ${name}, a ${trade} practice in ${city}.\n\nYour job:\n1. Answer questions about services, insurance accepted, and what to expect\n2. Schedule new patient appointments — collect: name, date of birth, insurance carrier & ID, reason for visit, preferred provider if any\n3. Handle existing patient appointment requests\n4. Send appointment reminders and confirmations\n5. Answer FAQs about the practice\n\nIMPORTANT: Never provide medical advice. Always say "The doctor will assess that at your appointment." Be warm, reassuring, and HIPAA-aware — do not store or repeat sensitive health details unnecessarily.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Patient Contact",              desc:"Patient calls, texts, or uses website chat"},
+            {id:mkId(),type:"action",  label:"Identify Need",                desc:"New patient, existing patient, insurance question, or general inquiry"},
+            {id:mkId(),type:"action",  label:"Collect Patient Info",         desc:"Name, DOB, insurance carrier/ID, reason for visit"},
+            {id:mkId(),type:"tool",    label:"Check Insurance",              desc:"Verify insurance is accepted at this practice", tool:"web_search"},
+            {id:mkId(),type:"tool",    label:"Check Provider Availability",  desc:"Find open appointment slots with preferred provider", tool:"calendar_api"},
+            {id:mkId(),type:"action",  label:"Offer Appointment Options",    desc:"Present 2–3 time slots, confirm selection"},
+            {id:mkId(),type:"tool",    label:"Book & Create Patient Record", desc:"Schedule appointment and create/update patient record", tool:"crm_api"},
+            {id:mkId(),type:"tool",    label:"Send Reminder",                desc:"Appointment confirmation + intake forms link via SMS", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Booking Confirmation",         desc:"Confirm appointment, what to bring, directions"},
+          ],
+          tools:["crm_api","calendar_api","slack_send","web_search"],
+          evals:[
+            {id:mkId(),input:`Do you take Blue Cross Blue Shield?`,expected:`Confirm insurance accepted (or say to check), offer to book with insurance details.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`I need to see a doctor about my back pain, I'm a new patient`,expected:`Collect name, DOB, insurance, reason for visit. Check availability. Book appointment.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`Is this normal? My knee has been swelling for 3 days`,expected:`Acknowledge concern, do NOT give medical advice. Offer to get them seen as soon as possible.`,result:"",status:"pending",score:null},
+          ],
+        },
+        {
+          name:"Patient Follow-Up Agent",
+          description:`Handles post-visit follow-ups, prescription refill routing, recall reminders, and review collection.`,
+          systemPrompt:`You are a patient follow-up coordinator for ${name}.\n\nYour job:\n1. Follow up with patients after appointments — check in on their experience\n2. Route prescription refill requests to the appropriate provider (do NOT approve refills yourself)\n3. Send recall reminders (annual checkups, cleanings, etc.)\n4. Collect Google reviews from satisfied patients\n\nBe warm and personal. Patients remember how their care team made them feel, not just what was done.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Post-Visit or Recall Trigger", desc:"Automated trigger 24–48h after appointment, or recall due date"},
+            {id:mkId(),type:"action",  label:"Check Visit Notes",            desc:"Pull appointment summary from CRM to personalize the follow-up"},
+            {id:mkId(),type:"action",  label:"Send Follow-Up Message",       desc:"Ask how they're feeling, if they have questions"},
+            {id:mkId(),type:"decision",label:"Refill Request?",              desc:"If patient mentions prescription → route to provider queue, do not handle directly"},
+            {id:mkId(),type:"tool",    label:"Send Review Request",          desc:"If experience was positive, send Google review link", tool:"slack_send"},
+            {id:mkId(),type:"tool",    label:"Schedule Recall Appointment",  desc:"Book next routine visit if due", tool:"calendar_api"},
+            {id:mkId(),type:"output",  label:"Follow-Up Complete",           desc:"Log interaction in patient record"},
+          ],
+          tools:["crm_api","calendar_api","slack_send"],
+          evals:[
+            {id:mkId(),input:`Can I get a refill on my medication?`,expected:`Acknowledge request, explain you're routing it to the provider, do NOT approve it yourself.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`My adjustment yesterday really helped, feeling much better!`,expected:`Express genuine gladness. Ask for a Google review. Remind about next scheduled visit.`,result:"",status:"pending",score:null},
+          ],
+        },
+      ],
+    },
+    PERSONAL: {
+      agents:[
+        {
+          name:"Appointment Booking Agent",
+          description:`Books appointments, manages the schedule, and handles cancellations and rescheduling.`,
+          systemPrompt:`You are a booking assistant for ${name}, a ${trade} in ${city}.\n\nYour job:\n1. Book appointments for services\n2. Collect: customer name, phone, service requested, preferred stylist/provider (if any), date/time preference\n3. Handle rescheduling and cancellations (24-hour cancellation policy)\n4. Upsell complementary services naturally — never pushy\n5. Send booking confirmations\n\nBe upbeat, friendly, and make customers excited about their visit.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Booking Request",              desc:"Customer contacts via chat, DM, or website"},
+            {id:mkId(),type:"action",  label:"Identify Service",             desc:"What service do they want? Which provider? Any preferences?"},
+            {id:mkId(),type:"tool",    label:"Check Availability",           desc:"Find open slots for requested service and provider", tool:"calendar_api"},
+            {id:mkId(),type:"action",  label:"Present Options & Confirm",    desc:"Offer 2–3 time slots, mention complementary services"},
+            {id:mkId(),type:"tool",    label:"Book & Notify",                desc:"Create appointment and send SMS confirmation", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Confirmation",                 desc:"Confirm booking details and what to expect"},
+          ],
+          tools:["calendar_api","slack_send","crm_api"],
+          evals:[
+            {id:mkId(),input:`I'd like to book a haircut for Saturday afternoon`,expected:`Check Saturday afternoon availability, collect name/phone, confirm booking, mention add-ons.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`I need to cancel my appointment tomorrow`,expected:`Acknowledge cancellation, check 24-hour policy, offer to reschedule.`,result:"",status:"pending",score:null},
+          ],
+        },
+        {
+          name:"Client Retention Agent",
+          description:`Re-engages lapsed clients, sends rebooking reminders, and collects reviews from satisfied customers.`,
+          systemPrompt:`You are a client retention specialist for ${name}.\n\nYour job:\n1. Reach out to clients who haven't visited in 6–8 weeks\n2. Remind them it's time for their next service\n3. Offer an easy rebooking link\n4. Collect reviews from recent happy clients\n\nTone: friendly and personal, not spammy. Keep messages short and warm.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Lapsed Client or Post-Visit",  desc:"Triggered when client hasn't booked in 6+ weeks OR 2 days after a visit"},
+            {id:mkId(),type:"tool",    label:"Pull Client History",          desc:"Get last visit date, services received, provider", tool:"crm_api"},
+            {id:mkId(),type:"decision",label:"Happy Recent Visit?",          desc:"Recent visit → review request. Lapsed → rebooking nudge"},
+            {id:mkId(),type:"tool",    label:"Send Rebook / Review Message", desc:"Personalized SMS with rebooking link or review request", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Log Outreach",                 desc:"Record outreach in CRM, schedule follow-up if no response"},
+          ],
+          tools:["crm_api","slack_send"],
+          evals:[
+            {id:mkId(),input:`(Client hasn't visited in 8 weeks)`,expected:`Send warm "we miss you" message with easy rebooking link. Don't be pushy.`,result:"",status:"pending",score:null},
+          ],
+        },
+      ],
+    },
+    FOOD: {
+      agents:[
+        {
+          name:"Reservations & Orders Agent",
+          description:`Takes reservations, answers questions about hours and availability, and handles catering or large-party inquiries.`,
+          systemPrompt:`You are a customer service assistant for ${name}, a ${trade} in ${city}.\n\nYour job:\n1. Take reservations (collect: name, party size, date/time, special requests, phone)\n2. Answer questions about hours, location, and general menu offerings\n3. Handle catering and large-party inquiries (route to manager for parties 15+)\n4. Manage waitlist during busy periods\n\nBe warm and make guests feel excited about their experience.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Customer Contact",             desc:"Customer calls, texts, or uses online chat"},
+            {id:mkId(),type:"action",  label:"Identify Request",             desc:"Reservation, hours question, menu inquiry, or catering"},
+            {id:mkId(),type:"decision",label:"Large Party (15+)?",           desc:"Route large catering/event requests to the manager"},
+            {id:mkId(),type:"tool",    label:"Check Availability",           desc:"Confirm the requested date/time has open tables", tool:"calendar_api"},
+            {id:mkId(),type:"action",  label:"Book Reservation",             desc:"Collect name, party size, special requests (allergies, celebrations)"},
+            {id:mkId(),type:"tool",    label:"Send Confirmation",            desc:"SMS confirmation with reservation details and address", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Confirmation Message",         desc:"Recap reservation details, mention parking, say we look forward to seeing them"},
+          ],
+          tools:["calendar_api","slack_send","crm_api"],
+          evals:[
+            {id:mkId(),input:`Table for 4 this Friday at 7pm`,expected:`Check Friday 7pm availability, collect name/phone/special requests, confirm booking.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`Do you do gluten-free options?`,expected:`Answer honestly about GF options available, mention cross-contamination caveat if applicable.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`We need catering for our company event, about 80 people`,expected:`Express enthusiasm, collect basic details, route to the catering manager for a full quote.`,result:"",status:"pending",score:null},
+          ],
+        },
+        {
+          name:"Menu FAQ Agent",
+          description:`Handles menu questions, dietary restrictions, hours, specials, and online order support.`,
+          systemPrompt:`You are a knowledgeable assistant for ${name}. You know the menu inside and out.\n\nYour job:\n1. Answer questions about menu items, ingredients, and pricing\n2. Advise on allergens and dietary restrictions (vegetarian, vegan, gluten-free, nut-free, etc.)\n3. Share daily specials and promotions\n4. Help with online order issues — route order problems to the kitchen manager\n\nBe enthusiastic about the food. Make people hungry.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Menu or Order Question",       desc:"Customer asks about the menu, dietary needs, or an order issue"},
+            {id:mkId(),type:"action",  label:"Answer Question",              desc:"Provide accurate, detailed menu information"},
+            {id:mkId(),type:"decision",label:"Order Problem?",               desc:"If the customer has an issue with an existing order → escalate to manager"},
+            {id:mkId(),type:"output",  label:"Response",                     desc:"Answer with enthusiasm, suggest pairings or specials"},
+          ],
+          tools:["file_read"],
+          evals:[
+            {id:mkId(),input:`Do you have anything vegan?`,expected:`List vegan options enthusiastically. Mention cross-contamination policy if relevant.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`My order was wrong, I got onions and I'm allergic`,expected:`Apologize sincerely. Escalate to manager immediately. Do NOT dismiss the allergy concern.`,result:"",status:"pending",score:null},
+          ],
+        },
+      ],
+    },
+    PROFESSIONAL: {
+      agents:[
+        {
+          name:"Consultation Booking Agent",
+          description:`Books initial consultations, collects intake information, and answers basic questions about services and fees.`,
+          systemPrompt:`You are a client intake coordinator for ${name}, a ${trade} firm in ${city}.\n\nYour job:\n1. Answer general questions about services offered and fee structures\n2. Schedule initial consultations\n3. Collect intake information: name, contact info, matter type/description, urgency\n4. Set expectations about the consultation (length, what to prepare, next steps)\n\nIMPORTANT: Never give specific legal, financial, or professional advice. Always say "Our team will advise you on the specifics during your consultation." Be professional and reassuring.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Prospect Inquiry",             desc:"Potential client contacts via website, phone, or referral"},
+            {id:mkId(),type:"action",  label:"Understand Their Need",        desc:"What kind of help are they looking for? How urgent?"},
+            {id:mkId(),type:"action",  label:"Collect Intake Info",          desc:"Name, contact, matter description, timeline, any deadlines"},
+            {id:mkId(),type:"tool",    label:"Check Availability",           desc:"Find open consultation slots", tool:"calendar_api"},
+            {id:mkId(),type:"action",  label:"Book Consultation",            desc:"Confirm slot, explain what to prepare, set expectations"},
+            {id:mkId(),type:"tool",    label:"Send Confirmation & Intake Form",desc:"Email/SMS confirmation with intake form link", tool:"slack_send"},
+            {id:mkId(),type:"tool",    label:"Create Lead in CRM",           desc:"Log the prospect with their matter type and urgency", tool:"crm_api"},
+            {id:mkId(),type:"output",  label:"Confirmation",                 desc:"Recap consultation details and what to expect"},
+          ],
+          tools:["calendar_api","crm_api","slack_send"],
+          evals:[
+            {id:mkId(),input:`I need help with a contract dispute, it's pretty urgent`,expected:`Acknowledge urgency, collect details, find earliest consultation slot, set clear expectations.`,result:"",status:"pending",score:null},
+            {id:mkId(),input:`How much do you charge?`,expected:`Explain fee structure (hourly/flat/contingency), note that specifics depend on the matter, offer to book a free consultation.`,result:"",status:"pending",score:null},
+          ],
+        },
+        {
+          name:"Client FAQ Agent",
+          description:`Handles common questions, status inquiries, and document requests — keeping clients informed without pulling the team away from billable work.`,
+          systemPrompt:`You are a client services assistant for ${name}.\n\nYour job:\n1. Answer frequently asked questions about process, timelines, and next steps\n2. Route status inquiries to the right team member (do NOT give case/project status yourself)\n3. Handle document requests — tell clients where to send/upload documents\n4. Collect feedback after project completion\n\nAlways be professional, never speculate on outcomes or timelines. Route anything substantive to the appropriate team member.`,
+          workflow:[
+            {id:mkId(),type:"trigger", label:"Client Question",              desc:"Existing client has a question or needs an update"},
+            {id:mkId(),type:"action",  label:"Identify Question Type",       desc:"FAQ, status request, document request, or feedback"},
+            {id:mkId(),type:"decision",label:"Substantive Matter?",          desc:"If they need case/project status → route to the responsible team member"},
+            {id:mkId(),type:"tool",    label:"Pull Client Record",           desc:"Look up client and assigned team member in CRM", tool:"crm_api"},
+            {id:mkId(),type:"tool",    label:"Notify Team Member",           desc:"Alert the responsible person that their client has a question", tool:"slack_send"},
+            {id:mkId(),type:"output",  label:"Response to Client",           desc:"Answer FAQ or confirm that the right person will be in touch within 1 business day"},
+          ],
+          tools:["crm_api","slack_send"],
+          evals:[
+            {id:mkId(),input:`What's the status of my case?`,expected:`Acknowledge the question, pull their record, notify assigned team member, tell client to expect a response within 1 business day.`,result:"",status:"pending",score:null},
+          ],
+        },
+      ],
+    },
+  };
+
+  const template = templates[cat] || {
+    agents:[
+      {
+        name:"Customer Service Agent",
+        description:`Handles inbound inquiries for ${name} — answers questions, books appointments, and provides information about ${trade} services.`,
+        systemPrompt:`You are a friendly customer service assistant for ${name}, a ${trade} business in ${city}.\n\nYour job:\n1. Answer common questions about services and pricing\n2. Collect customer information and book appointments\n3. Route complex requests to the appropriate team member\n4. Be warm, professional, and helpful\n\nPhone: ${phone}`,
+        workflow:[
+          {id:mkId(),type:"trigger", label:"Customer Inquiry",   desc:"Customer contacts via website, phone, or chat"},
+          {id:mkId(),type:"action",  label:"Understand Need",    desc:"Identify what the customer is looking for"},
+          {id:mkId(),type:"action",  label:"Collect Info",       desc:"Gather name, contact info, and relevant details"},
+          {id:mkId(),type:"tool",    label:"Check Availability", desc:"Find available time slots or resources", tool:"calendar_api"},
+          {id:mkId(),type:"tool",    label:"Send Confirmation",  desc:"Confirm booking or inquiry via SMS", tool:"slack_send"},
+          {id:mkId(),type:"output",  label:"Response",           desc:"Provide clear, helpful response to the customer"},
+        ],
+        tools:["calendar_api","slack_send","crm_api"],
+        evals:[
+          {id:mkId(),input:`What services do you offer?`,expected:`Provide a clear, friendly overview of ${trade} services offered.`,result:"",status:"pending",score:null},
+          {id:mkId(),input:`Can I book an appointment?`,expected:`Collect name, contact info, collect service needed, check availability, confirm booking.`,result:"",status:"pending",score:null},
+        ],
+      },
+    ],
+  };
+
+  // Attach tool config and IDs to each agent
+  const TOOL_CATALOG_FULL = [
+    {id:"web_search",   name:"Web Search",         cat:"Web",      desc:"Search for current information"},
+    {id:"web_fetch",    name:"Web Fetch",           cat:"Web",      desc:"Fetch content from URLs"},
+    {id:"file_read",    name:"File Read",           cat:"Files",    desc:"Read files from the workspace"},
+    {id:"db_query",     name:"Database Query",      cat:"Data",     desc:"Query SQL databases"},
+    {id:"slack_send",   name:"SMS / Slack Alert",   cat:"Comms",    desc:"Send SMS or Slack notifications"},
+    {id:"calendar_api", name:"Booking Calendar",    cat:"Scheduling",desc:"Check availability and book appointments"},
+    {id:"crm_api",      name:"Customer CRM",        cat:"Data",     desc:"Look up and manage customer records"},
+    {id:"custom_api",   name:"Custom API",          cat:"Custom",   desc:"Call any REST API endpoint"},
+  ];
+
+  return template.agents.map(a => ({
+    ...a,
+    id: mkId(),
+    model: cat==="HEALTH"||cat==="PROFESSIONAL" ? "claude-opus-4-6" : "claude-sonnet-4-6",
+    bizId: biz.id,
+    bizName: biz.name,
+    bizPhone: biz.phone,
+    bizAddress: biz.address,
+    bizRating: biz.rating,
+    bizReviews: biz.reviews,
+    trade: biz.trade,
+    city: biz.city,
+  }));
+};
+
+// ── Outreach Content ─────────────────────────────────────────────────────────
+const PAIN_POINTS = {
+  HOME: [
+    "75% of service calls go unanswered after 5pm — customers call the next result on Google",
+    "Emergency calls at night go to voicemail; panicked customers book whoever picks up first",
+    "Staff spends 2+ hours/day answering the same 5 booking questions",
+    "No automated follow-up → no-shows, schedule gaps, and lost revenue",
+    "Great work but no review collection system → reputation grows slowly",
+  ],
+  AUTO: [
+    "After-hours service requests go unanswered — lost to shops with online booking",
+    "Customers don't return because no one follows up after the repair",
+    "Front desk overwhelmed during morning drop-off; calls go to hold",
+    "Estimate requests left unanswered for hours feel like rejection",
+    "Excellent work, poor reviews — no one asks satisfied customers",
+  ],
+  HEALTH: [
+    "No-shows cost $150–$300 each; most are preventable with timely reminders",
+    "New patients who don't get a callback within 1 hour book at another practice",
+    "Front desk spends 30% of the day on scheduling instead of patient care",
+    "Recall outreach is manual and inconsistent — patients fall through the cracks",
+    "Insurance questions cause delays that frustrate patients before they even arrive",
+  ],
+  PERSONAL: [
+    "Clients who go 7+ weeks without a rebooking nudge choose a new provider",
+    "DMs and website inquiries go unanswered during busy floor hours",
+    "No cancellation follow-up → empty chair time that could be filled instantly",
+    "5-star clients never leave a review because no one asks",
+    "Revenue depends entirely on walk-ins — no retention system",
+  ],
+  FOOD: [
+    "Peak-hour calls go unanswered — tables go unfilled on Friday nights",
+    "Large catering leads drop if follow-up takes more than a few hours",
+    "No reminder system → no-shows and empty reservations",
+    "Staff handles reservations by hand — double-bookings happen",
+    "Good meals never become reviews because no one follows up",
+  ],
+  PROFESSIONAL: [
+    "Prospect calls at 9pm get voicemail — they hire the firm that called back",
+    "Missed consultations cost $500–$2,000+ each in potential fees",
+    "Intake forms collected manually delay getting to billable work",
+    "Existing clients feel ignored when simple questions take a day to answer",
+    "Referral follow-up is inconsistent — the best leads go cold",
+  ],
+  GENERAL: [
+    "Inbound inquiries go unanswered outside business hours",
+    "No systematic follow-up means hot leads go cold",
+    "Staff answers the same questions repeatedly instead of doing high-value work",
+    "Customer reviews are never collected — online reputation stagnates",
+    "Booking friction causes prospects to call the next business instead",
+  ],
+};
+
+const ROI_LINES = {
+  HOME:         {monthly:"$3,000–$6,000",  stat:"8–15 additional booked jobs/month",      note:"40% of after-hours calls become next-day bookings with instant response"},
+  AUTO:         {monthly:"$2,500–$5,000",  stat:"12–20 additional service visits/month",   note:"Shops with AI scheduling capture 35% more after-hours appointments"},
+  HEALTH:       {monthly:"$4,000–$8,000",  stat:"20–40 fewer no-shows/month",              note:"Practices cut no-shows by 40% with automated reminders"},
+  PERSONAL:     {monthly:"$1,500–$3,500",  stat:"25–40% more repeat bookings",             note:"Retention agents recover 1 in 3 lapsed clients within 90 days"},
+  FOOD:         {monthly:"$2,000–$4,500",  stat:"30–50 additional covers/week",            note:"Automated reservations fill 20% more tables on peak nights"},
+  PROFESSIONAL: {monthly:"$5,000–$12,000", stat:"6–12 additional consultations/month",     note:"Firms with AI intake capture 50% more leads from their website"},
+  GENERAL:      {monthly:"$2,000–$5,000",  stat:"Significant after-hours lead capture",    note:"Businesses with AI response capture 3× more leads after hours"},
+};
+
+const genEmailTemplate = (biz, profile) => {
+  const cat   = getCat(biz.trade);
+  const roi   = ROI_LINES[cat] || ROI_LINES.GENERAL;
+  const pain  = (PAIN_POINTS[cat] || PAIN_POINTS.GENERAL).slice(0,2);
+  const first = biz.name.split("'")[0].split(" ")[0];
+  return `Subject: Quick question about ${biz.name}'s after-hours inquiries
+
+Hi ${first},
+
+I came across ${biz.name} on Google — ${biz.rating}★ with ${biz.reviews} reviews. You've clearly built a business people trust.
+
+Here's something I've noticed across ${biz.trade} businesses in ${biz.city}: ${pain[0].toLowerCase()}.
+
+I build AI agent systems specifically for ${biz.trade} companies. For a business like yours, that means:
+
+  • A 24/7 booking agent that captures inquiries after you close
+  • Automated follow-ups that turn leads into confirmed jobs
+  • Review request flows that grow your Google rating passively
+
+Most ${biz.trade} businesses I work with see ${roi.stat}.
+
+I'm not selling software — I build and manage the whole thing for you. No tech skills needed.
+
+Worth a 15-minute call this week? I can walk you through exactly what I'd build for ${biz.name}.
+
+${profile.name||"[Your Name]"}
+${profile.company||"[Your Company]"}
+${profile.phone||"[Your Phone]"}
+${profile.email||"[Your Email]"}`;
+};
+
+const genPhoneScript = (biz, profile) => {
+  const cat     = getCat(biz.trade);
+  const roi     = ROI_LINES[cat] || ROI_LINES.GENERAL;
+  const nextDay = new Date(Date.now()+2*24*60*60*1000).toLocaleDateString("en-US",{weekday:"long"});
+  return `PHONE SCRIPT — ${biz.name}
+${biz.trade}  |  ${biz.city}  |  ${biz.rating}★  |  ${biz.phone}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPENER
+"Hi, can I speak with the owner or manager? ... Hi, I'm ${profile.name||"[Your Name]"} — I work with ${biz.trade} businesses in ${biz.city} to help them capture more leads with AI. Do you have 2 minutes?"
+
+THE PITCH (if yes)
+"I was looking at ${biz.name} — great reviews. Quick question: what happens when someone calls about a ${biz.trade.toLowerCase()} job at 9pm and you're closed? [Let them answer.] That's exactly the gap I close. I build AI agents that handle after-hours bookings and follow-ups automatically — so you never lose a job because no one picked up. Most ${biz.trade} businesses I work with see ${roi.stat}."
+
+HANDLE OBJECTIONS
+
+  "We already have voicemail" →
+  "Voicemail loses the job. People want instant confirmation — if they don't hear back in minutes, they call the next result."
+
+  "We're pretty busy already" →
+  "That's exactly when automation pays. Same team, more capacity."
+
+  "How much?" →
+  "Depends on what we build — that's why I want 15 minutes to look at your setup and give you real numbers."
+
+CLOSE
+"Can I send you a quick overview? What's the best email? ... Perfect. I'll send that today and follow up ${nextDay} if I don't hear back."`;
+};
+
+const genSMSTemplate = (biz, profile) => {
+  return `Hi, this is ${profile.name||"[Your Name]"} — I help ${biz.trade} businesses in ${biz.city} capture after-hours leads with AI. Saw ${biz.name} has great reviews online. Worth a quick 15-min call this week to show you what I'd build for you specifically?`;
+};
+
+const genLinkedInTemplate = (biz, profile) => {
+  const cat = getCat(biz.trade);
+  const roi = ROI_LINES[cat] || ROI_LINES.GENERAL;
+  return `CONNECTION REQUEST NOTE:
+"Hi — I help ${biz.trade} businesses in ${biz.city} automate bookings and follow-ups with AI. Came across ${biz.name} and wanted to connect. — ${profile.name||"[Your Name]"}"
+
+━━━━ FOLLOW-UP (after they accept) ━━━━
+Thanks for connecting!
+
+I noticed ${biz.name} has ${biz.rating}★ on Google — solid reputation in ${biz.city}. I build AI agent systems for ${biz.trade} businesses that handle the after-hours stuff: bookings, confirmations, follow-ups, review collection.
+
+Typical result: ${roi.stat}.
+
+Not pitching software — I build and manage the whole thing. Happy to share a quick overview if it's relevant?
+
+${profile.name||"[Your Name]"}
+${profile.company||"[Your Company]"}`;
+};
+
+const genInstagramTemplate = (biz, profile) => {
+  return `Hey! Came across ${biz.name} — love what you're doing. I build AI assistants for local ${biz.trade} businesses in ${biz.city} that handle bookings and follow-ups automatically. Takes 15 min to show you what it would look like for your specific shop. Interested? — ${profile.name||"[Your Name]"}`;
+};
+
+// ── Shared UI ───────────────────────────────────────────────────────────────
+const Badge = ({color,children}) => (
+  <span style={{background:color+"22",color,border:`1px solid ${color}44`}}
+    className="text-xs font-medium px-2 py-0.5 rounded-full">{children}</span>
+);
+
+const Stars = ({rating}) => (
+  <span className="flex items-center gap-0.5">
+    {[1,2,3,4,5].map(n=>(
+      <Star key={n} size={11} color={n<=Math.round(rating)?"#f59e0b":"#334155"}
+        style={{fill: n<=Math.round(rating)?"#f59e0b":"none"}}/>
+    ))}
+    <span className="text-xs text-slate-400 ml-1">{rating} ({rating>100?rating.toLocaleString():rating})</span>
+  </span>
+);
+
+const statusColor = s => ({pass:"#10b981",fail:"#ef4444",pending:"#f59e0b"}[s]??"#64748b");
+const statusIcon  = s => ({
+  pass:    <Check  size={13} color="#10b981"/>,
+  fail:    <XCirc  size={13} color="#ef4444"/>,
+  pending: <Clock  size={13} color="#f59e0b"/>,
+}[s]);
+
+// ── Discover View ───────────────────────────────────────────────────────────
+function DiscoverView({onBuild}) {
+  const [city,    setCity]    = useState("");
+  const [trade,   setTrade]   = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page,    setPage]    = useState(0);
+  const [selected,setSelected]= useState(new Set());
+  const [searched,setSearched]= useState(false);
+
+  const PER_PAGE = 20;
+  const totalPages = Math.ceil(results.length / PER_PAGE);
+  const pageResults = results.slice(page*PER_PAGE, page*PER_PAGE+PER_PAGE);
+
+  const doSearch = () => {
+    if(!city.trim()||!trade) return;
+    setLoading(true); setSelected(new Set()); setPage(0); setSearched(false);
+    setTimeout(()=>{
+      setResults(generateBusinesses(city.trim(), trade, 60));
+      setLoading(false); setSearched(true);
+    }, 1400);
+  };
+
+  const toggleSelect = (id) => {
+    setSelected(prev=>{
+      const s=new Set(prev);
+      s.has(id)?s.delete(id):s.add(id); return s;
+    });
+  };
+
+  const handleBuild = () => {
+    const chosen = results.filter(r=>selected.has(r.id));
+    if(chosen.length) onBuild(chosen);
+  };
+
+  return (
+    <div style={{height:"100%",background:"#020617",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+      {/* Sub-header */}
+      <div style={{padding:"16px 0 14px",textAlign:"center",borderBottom:"1px solid #1e293b"}}>
+        <p style={{color:"#94a3b8",fontSize:15,fontWeight:700,margin:0}}>Find businesses to build AI agents for</p>
+        <p style={{color:"#475569",fontSize:12,margin:"3px 0 0"}}>Search any city + service type → select businesses → generate agent blueprints</p>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{padding:"28px 40px",background:"#0f172a",borderBottom:"1px solid #1e293b"}}>
+        <div style={{maxWidth:860,margin:"0 auto",display:"flex",gap:12,alignItems:"flex-end"}}>
+          <div style={{flex:"0 0 220px"}}>
+            <label style={{fontSize:11,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:6}}>City</label>
+            <div style={{position:"relative"}}>
+              <MapPin size={14} color="#64748b" style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}/>
+              <input value={city} onChange={e=>setCity(e.target.value)} placeholder="Austin, TX"
+                onKeyDown={e=>e.key==="Enter"&&doSearch()}
+                style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:10,padding:"10px 12px 10px 36px",color:"white",fontSize:14,outline:"none"}}/>
+            </div>
+          </div>
+          <div style={{flex:1}}>
+            <label style={{fontSize:11,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:6}}>Service Type</label>
+            <select value={trade} onChange={e=>setTrade(e.target.value)}
+              style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:10,padding:"10px 12px",color:trade?"white":"#64748b",fontSize:14,outline:"none"}}>
+              <option value="">Select a service type…</option>
+              {Object.entries(TRADE_CATS).map(([cat,trades])=>(
+                <optgroup key={cat} label={cat}>
+                  {trades.map(t=><option key={t} value={t}>{t}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <button onClick={doSearch} disabled={!city.trim()||!trade||loading}
+            style={{flexShrink:0,display:"flex",alignItems:"center",gap:8,padding:"10px 24px",background:city.trim()&&trade?"#6366f1":"#334155",border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:600,cursor:city.trim()&&trade?"pointer":"not-allowed"}}>
+            {loading?<Spin size={15} className="spin"/>:<Search size={15}/>}
+            {loading?"Searching…":"Search"}
+          </button>
+        </div>
+      </div>
+
+      {/* Results */}
+      <div style={{flex:1,padding:"24px 40px",maxWidth:900,margin:"0 auto",width:"100%"}}>
+        {loading && (
+          <div style={{textAlign:"center",padding:"80px 0",color:"#64748b"}}>
+            <Spin size={32} className="spin" color="#6366f1" style={{display:"block",margin:"0 auto 16px"}}/>
+            <p style={{margin:0}}>Searching for {trade} businesses in {city}…</p>
+          </div>
+        )}
+
+        {!loading && searched && (
+          <>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <p style={{margin:0,color:"#94a3b8",fontSize:14}}>
+                Found <strong style={{color:"white"}}>{results.length}</strong> {trade} businesses in <strong style={{color:"white"}}>{city}</strong>
+                {selected.size>0 && <> — <strong style={{color:"#818cf8"}}>{selected.size} selected</strong></>}
+              </p>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <span style={{fontSize:12,color:"#64748b"}}>Page {page+1} of {totalPages}</span>
+                <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0}
+                  style={{background:page===0?"#1e293b":"#334155",border:"none",borderRadius:8,padding:"6px 10px",color:page===0?"#475569":"white",cursor:page===0?"not-allowed":"pointer",display:"flex",alignItems:"center"}}>
+                  <ArrowL size={14}/>
+                </button>
+                <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page>=totalPages-1}
+                  style={{background:page>=totalPages-1?"#1e293b":"#334155",border:"none",borderRadius:8,padding:"6px 10px",color:page>=totalPages-1?"#475569":"white",cursor:page>=totalPages-1?"not-allowed":"pointer",display:"flex",alignItems:"center"}}>
+                  <ArrowR size={14}/>
+                </button>
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}} className="fade-in">
+              {pageResults.map(biz=>{
+                const sel=selected.has(biz.id);
+                return (
+                  <div key={biz.id} onClick={()=>toggleSelect(biz.id)}
+                    style={{background:sel?"rgba(99,102,241,0.12)":"#0f172a",border:`1px solid ${sel?"#6366f1":"#1e293b"}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",display:"flex",gap:12,alignItems:"flex-start",transition:"all 0.15s"}}>
+                    <div style={{width:20,height:20,borderRadius:5,border:`2px solid ${sel?"#6366f1":"#334155"}`,background:sel?"#6366f1":"transparent",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all 0.15s"}}>
+                      {sel&&<Check size={11} color="white"/>}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{margin:"0 0 4px",fontWeight:600,fontSize:14,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{biz.name}</p>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                        <Stars rating={biz.rating}/>
+                        <span style={{fontSize:11,color:"#475569"}}>({biz.reviews} reviews)</span>
+                      </div>
+                      <p style={{margin:"2px 0",fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:5}}>
+                        <MapPin size={11} color="#475569"/>{biz.address}
+                      </p>
+                      <p style={{margin:"2px 0",fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:5}}>
+                        <Phone size={11} color="#475569"/>{biz.phone}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination row */}
+            <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:24}}>
+              {Array.from({length:totalPages},(_,i)=>(
+                <button key={i} onClick={()=>setPage(i)}
+                  style={{width:32,height:32,borderRadius:8,border:"none",background:page===i?"#6366f1":"#1e293b",color:page===i?"white":"#64748b",cursor:"pointer",fontSize:13,fontWeight:page===i?700:400}}>
+                  {i+1}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {!loading && !searched && (
+          <div style={{textAlign:"center",padding:"80px 0",color:"#334155"}}>
+            <Search size={48} color="#1e293b" style={{display:"block",margin:"0 auto 16px"}}/>
+            <p style={{margin:0,fontSize:15}}>Enter a city and service type to find businesses</p>
+            <p style={{margin:"8px 0 0",fontSize:13,color:"#1e293b"}}>{ALL_TRADES.length} service types available across 8 categories</p>
+          </div>
+        )}
+      </div>
+
+      {/* Build Button — sticky bottom */}
+      {selected.size>0 && (
+        <div style={{position:"sticky",bottom:0,background:"rgba(2,6,23,0.95)",backdropFilter:"blur(12px)",borderTop:"1px solid #1e293b",padding:"16px 40px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <p style={{margin:0,fontSize:14,color:"#94a3b8"}}>
+            <strong style={{color:"white"}}>{selected.size}</strong> {selected.size===1?"business":"businesses"} selected
+          </p>
+          <button onClick={handleBuild}
+            style={{display:"flex",alignItems:"center",gap:8,padding:"11px 28px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+            <Hammer size={15}/> Build Agents for {selected.size} {selected.size===1?"Business":"Businesses"} →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Workspace Sections ───────────────────────────────────────────────────────
+const TOOL_CATALOG = [
+  {id:"web_search",   name:"Web Search",       cat:"Web",       desc:"Search for current information"},
+  {id:"web_fetch",    name:"Web Fetch",         cat:"Web",       desc:"Fetch content from URLs"},
+  {id:"file_read",    name:"File Read",         cat:"Files",     desc:"Read files from the workspace"},
+  {id:"db_query",     name:"Database Query",    cat:"Data",      desc:"Query SQL databases"},
+  {id:"slack_send",   name:"SMS / Slack Alert", cat:"Comms",     desc:"Send SMS or Slack notifications"},
+  {id:"calendar_api", name:"Booking Calendar",  cat:"Scheduling",desc:"Check availability and book appointments"},
+  {id:"crm_api",      name:"Customer CRM",      cat:"Data",      desc:"Look up and manage customer records"},
+  {id:"custom_api",   name:"Custom API",        cat:"Custom",    desc:"Call any REST API endpoint"},
+];
+
+const STEP_TYPES = [
+  {id:"trigger",  label:"Trigger",   color:"#6366f1", Icon:Zap  },
+  {id:"action",   label:"Action",    color:"#0ea5e9", Icon:Play  },
+  {id:"decision", label:"Decision",  color:"#f59e0b", Icon:Alert },
+  {id:"tool",     label:"Tool Call", color:"#10b981", Icon:Wrench},
+  {id:"output",   label:"Output",    color:"#8b5cf6", Icon:Send  },
+];
+
+function OverviewSection({agent,onUpdate}) {
+  const passCount = agent.evals.filter(e=>e.status==="pass").length;
+  const doneCount = agent.evals.filter(e=>e.status!=="pending").length;
+  const pct = doneCount ? Math.round(passCount/doneCount*100) : 0;
+
+  return (
+    <div style={{padding:24,maxWidth:680}}>
+      {/* Biz card */}
+      <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:14,padding:"16px 20px",marginBottom:20,display:"flex",gap:16,alignItems:"flex-start"}}>
+        <div style={{width:44,height:44,borderRadius:12,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <Bot size={22} color="white"/>
+        </div>
+        <div style={{flex:1}}>
+          <p style={{margin:"0 0 2px",fontWeight:700,fontSize:16}}>{agent.bizName}</p>
+          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:4}}>
+            <Badge color="#6366f1">{agent.trade}</Badge>
+            <Badge color="#0ea5e9">{agent.model}</Badge>
+          </div>
+          <p style={{margin:"4px 0 2px",fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:5}}><MapPin size={11} color="#475569"/>{agent.bizAddress}</p>
+          <p style={{margin:"2px 0",fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:5}}><Phone size={11} color="#475569"/>{agent.bizPhone}</p>
+          {agent.bizRating && <div style={{marginTop:4}}><Stars rating={agent.bizRating}/></div>}
+        </div>
+      </div>
+
+      {/* Agent name & description */}
+      <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:14,padding:"16px 20px",marginBottom:20}}>
+        <p style={{margin:"0 0 4px",fontWeight:600,fontSize:15}}>{agent.name}</p>
+        <p style={{margin:0,fontSize:13,color:"#64748b",lineHeight:1.6}}>{agent.description}</p>
+      </div>
+
+      {/* Stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+        {[
+          {label:"Workflow Steps",value:agent.workflow.length,color:"#6366f1"},
+          {label:"Tools Enabled", value:agent.tools.length,   color:"#10b981"},
+          {label:"Eval Tests",    value:agent.evals.length,   color:"#f59e0b"},
+        ].map(({label,value,color})=>(
+          <div key={label} style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"14px 16px",textAlign:"center"}}>
+            <p style={{margin:"0 0 4px",fontSize:22,fontWeight:700,color}}>{value}</p>
+            <p style={{margin:0,fontSize:11,color:"#64748b"}}>{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Eval health */}
+      {doneCount>0 && (
+        <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:14,padding:"16px 20px"}}>
+          <p style={{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.05em"}}>Eval Health</p>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{flex:1,background:"#1e293b",borderRadius:999,height:6}}>
+              <div style={{height:6,borderRadius:999,background:"#10b981",width:`${pct}%`,transition:"width 0.5s"}}/>
+            </div>
+            <span style={{fontSize:13,fontWeight:700,color:"#10b981"}}>{pct}%</span>
+          </div>
+          <p style={{margin:"6px 0 0",fontSize:11,color:"#475569"}}>{passCount} of {doneCount} tests passing</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PromptSection({agent,onUpdate}) {
+  const [prompt,setPrompt]=useState(agent.systemPrompt);
+  const [saved,setSaved]=useState(true);
+  return (
+    <div style={{padding:24,maxWidth:720}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div><p style={{margin:"0 0 2px",fontWeight:600,fontSize:15}}>System Prompt</p><p style={{margin:0,fontSize:13,color:"#64748b"}}>The instructions your agent follows at all times</p></div>
+        <button onClick={()=>{onUpdate({systemPrompt:prompt});setSaved(true);}}
+          style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:saved?"#1e293b":"#6366f1",border:"none",borderRadius:8,color:saved?"#64748b":"white",cursor:saved?"default":"pointer",fontSize:13,fontWeight:600}}>
+          <Save size={13}/>{saved?"Saved":"Save Changes"}
+        </button>
+      </div>
+      <div style={{position:"relative"}}>
+        <textarea value={prompt} onChange={e=>{setPrompt(e.target.value);setSaved(false);}} rows={22}
+          style={{width:"100%",background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"14px 16px",color:"#e2e8f0",fontSize:13,fontFamily:"'Fira Code','Menlo',monospace",lineHeight:1.7,outline:"none",resize:"none"}}/>
+        <span style={{position:"absolute",bottom:10,right:14,fontSize:11,color:"#334155"}}>{prompt.length} chars</span>
+      </div>
+    </div>
+  );
+}
+
+function WorkflowSection({agent,onUpdate}) {
+  const [steps,setSteps]=useState(agent.workflow);
+  const [editing,setEditing]=useState(null);
+  const upd=(u)=>{setSteps(u);onUpdate({workflow:u});};
+  const add=()=>{const n={id:mkId(),type:"action",label:"New Step",desc:"",tool:null};const u=[...steps,n];upd(u);setEditing(n.id);};
+  const del=(id)=>upd(steps.filter(s=>s.id!==id));
+  const patch=(id,p)=>upd(steps.map(s=>s.id===id?{...s,...p}:s));
+  const move=(id,d)=>{const i=steps.findIndex(s=>s.id===id);if(i+d<0||i+d>=steps.length)return;const u=[...steps];[u[i],u[i+d]]=[u[i+d],u[i]];upd(u);};
+  return (
+    <div style={{padding:24,maxWidth:620}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div><p style={{margin:"0 0 2px",fontWeight:600,fontSize:15}}>Workflow Builder</p><p style={{margin:0,fontSize:13,color:"#64748b"}}>Step-by-step flow for this agent</p></div>
+        <button onClick={add} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"#6366f1",border:"none",borderRadius:8,color:"white",fontSize:13,fontWeight:600,cursor:"pointer"}}><Plus size={13}/>Add Step</button>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {steps.map((step,i)=>{
+          const ti=STEP_TYPES.find(t=>t.id===step.type)||STEP_TYPES[1];
+          const isEd=editing===step.id;
+          return (
+            <div key={step.id}>
+              <div style={{background:"#0f172a",border:`1px solid ${isEd?"#6366f1":"#1e293b"}`,borderRadius:12,padding:"12px 14px"}}>
+                <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:2,marginTop:2}}>
+                    <button onClick={()=>move(step.id,-1)} disabled={i===0} style={{background:"none",border:"none",cursor:i===0?"not-allowed":"pointer",color:i===0?"#1e293b":"#64748b",padding:0,display:"flex"}}><ChevU size={13}/></button>
+                    <button onClick={()=>move(step.id,1)} disabled={i===steps.length-1} style={{background:"none",border:"none",cursor:i===steps.length-1?"not-allowed":"pointer",color:i===steps.length-1?"#1e293b":"#64748b",padding:0,display:"flex"}}><ChevD size={13}/></button>
+                  </div>
+                  <div style={{width:30,height:30,borderRadius:8,background:ti.color+"22",border:`1px solid ${ti.color}44`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <ti.Icon size={14} color={ti.color}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    {isEd?(
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        <div style={{display:"flex",gap:8}}>
+                          <input value={step.label} onChange={e=>patch(step.id,{label:e.target.value})}
+                            style={{flex:1,background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"6px 10px",color:"white",fontSize:13,outline:"none"}}/>
+                          <select value={step.type} onChange={e=>patch(step.id,{type:e.target.value})}
+                            style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"6px 8px",color:"white",fontSize:13,outline:"none"}}>
+                            {STEP_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+                          </select>
+                        </div>
+                        <input value={step.desc||""} onChange={e=>patch(step.id,{desc:e.target.value})} placeholder="Description…"
+                          style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"6px 10px",color:"#94a3b8",fontSize:13,outline:"none"}}/>
+                        {step.type==="tool"&&(
+                          <select value={step.tool||""} onChange={e=>patch(step.id,{tool:e.target.value||null})}
+                            style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"6px 8px",color:"white",fontSize:13,outline:"none"}}>
+                            <option value="">Select tool…</option>
+                            {TOOL_CATALOG.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                        )}
+                        <button onClick={()=>setEditing(null)} style={{background:"none",border:"none",color:"#818cf8",fontSize:12,cursor:"pointer",padding:0,textAlign:"left"}}>Done editing</button>
+                      </div>
+                    ):(
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <div>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontWeight:600,fontSize:13}}>{step.label}</span>
+                            <Badge color={ti.color}>{ti.label}</Badge>
+                          </div>
+                          {step.desc&&<p style={{margin:"2px 0 0",fontSize:11,color:"#64748b"}}>{step.desc}</p>}
+                          {step.tool&&<p style={{margin:"2px 0 0",fontSize:11,color:"#10b981"}}>🔧 {TOOL_CATALOG.find(t=>t.id===step.tool)?.name}</p>}
+                        </div>
+                        <div style={{display:"flex",gap:4,marginLeft:8}}>
+                          <button onClick={()=>setEditing(step.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#64748b",padding:4,display:"flex"}}><Edit3 size={12}/></button>
+                          <button onClick={()=>del(step.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#64748b",padding:4,display:"flex"}}><Trash size={12}/></button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {i<steps.length-1&&<div style={{textAlign:"center",margin:"2px 0"}}><ArrowR size={12} color="#334155" style={{transform:"rotate(90deg)"}}/></div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ToolsSection({agent,onUpdate}) {
+  const toggle=(id)=>onUpdate({tools:agent.tools.includes(id)?agent.tools.filter(t=>t!==id):[...agent.tools,id]});
+  return (
+    <div style={{padding:24,maxWidth:700}}>
+      <p style={{margin:"0 0 4px",fontWeight:600,fontSize:15}}>Tools & Integrations</p>
+      <p style={{margin:"0 0 16px",fontSize:13,color:"#64748b"}}>Toggle what this agent is allowed to use</p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {TOOL_CATALOG.map(tool=>{
+          const en=agent.tools.includes(tool.id);
+          return (
+            <div key={tool.id} onClick={()=>toggle(tool.id)}
+              style={{background:en?"rgba(99,102,241,0.1)":"#0f172a",border:`1px solid ${en?"#6366f1":"#1e293b"}`,borderRadius:12,padding:"12px 14px",cursor:"pointer",transition:"all 0.15s"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{fontWeight:600,fontSize:13}}>{tool.name}</span>
+                <div style={{width:32,height:18,borderRadius:999,background:en?"#6366f1":"#334155",display:"flex",alignItems:"center",transition:"background 0.2s"}}>
+                  <div style={{width:12,height:12,borderRadius:999,background:"white",margin:"0 2px",transform:en?"translateX(14px)":"translateX(0)",transition:"transform 0.2s"}}/>
+                </div>
+              </div>
+              <p style={{margin:"0",fontSize:11,color:"#64748b"}}>{tool.desc}</p>
+              <p style={{margin:"4px 0 0",fontSize:10,color:"#475569"}}>Category: {tool.cat}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EvalsSection({agent,onUpdate}) {
+  const [evals,setEvals]=useState(agent.evals);
+  const [running,setRunning]=useState(false);
+  const [nr,setNr]=useState({input:"",expected:""});
+  const upd=(u)=>{setEvals(u);onUpdate({evals:u});};
+  const add=()=>{if(!nr.input.trim())return;upd([...evals,{id:mkId(),...nr,result:"",status:"pending",score:null}]);setNr({input:"",expected:""}); };
+  const del=(id)=>upd(evals.filter(e=>e.id!==id));
+  const run=()=>{
+    setRunning(true);
+    setTimeout(()=>{
+      upd(evals.map(e=>e.status==="pending"?{...e,result:`[Simulated] ${e.expected}`,status:"pass",score:Math.floor(Math.random()*25)+75}:e));
+      setRunning(false);
+    },1800);
+  };
+  const pass=evals.filter(e=>e.status==="pass").length;
+  const fail=evals.filter(e=>e.status==="fail").length;
+  const pend=evals.filter(e=>e.status==="pending").length;
+  const scored=evals.filter(e=>e.score!==null);
+  const avg=scored.length?Math.round(scored.reduce((a,e)=>a+e.score,0)/scored.length):null;
+  return (
+    <div style={{padding:24,maxWidth:900}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div><p style={{margin:"0 0 2px",fontWeight:600,fontSize:15}}>Eval Tracker</p><p style={{margin:0,fontSize:13,color:"#64748b"}}>Test this agent's behavior before going live</p></div>
+        <button onClick={run} disabled={running||pend===0}
+          style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:running||pend===0?"#1e293b":"#10b981",border:"none",borderRadius:8,color:running||pend===0?"#64748b":"white",cursor:running||pend===0?"not-allowed":"pointer",fontSize:13,fontWeight:600}}>
+          {running?<><Spin size={13} className="spin"/>Running…</>:<><Play size={13}/>Run Pending</>}
+        </button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
+        {[{l:"Passing",v:pass,c:"#10b981"},{l:"Failing",v:fail,c:"#ef4444"},{l:"Pending",v:pend,c:"#f59e0b"},{l:"Avg Score",v:avg!==null?`${avg}%`:"—",c:"#6366f1"}].map(({l,v,c})=>(
+          <div key={l} style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"12px",textAlign:"center"}}>
+            <p style={{margin:"0 0 2px",fontSize:20,fontWeight:700,color:c}}>{v}</p>
+            <p style={{margin:0,fontSize:11,color:"#64748b"}}>{l}</p>
+          </div>
+        ))}
+      </div>
+      <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,overflow:"hidden",marginBottom:12}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{borderBottom:"1px solid #1e293b"}}>
+            {["Input","Expected","Result","Status","Score",""].map(h=>(
+              <th key={h} style={{padding:"10px 12px",textAlign:"left",color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {evals.map((ev,i)=>(
+              <tr key={ev.id} style={{borderBottom:"1px solid #0f172a",background:i%2===1?"#080f1a":"transparent"}}>
+                <td style={{padding:"10px 12px",color:"#e2e8f0",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={ev.input}>{ev.input}</td>
+                <td style={{padding:"10px 12px",color:"#64748b",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={ev.expected}>{ev.expected||"—"}</td>
+                <td style={{padding:"10px 12px",color:"#64748b",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={ev.result}>{ev.result||"—"}</td>
+                <td style={{padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    {statusIcon(ev.status)}<span style={{color:statusColor(ev.status),textTransform:"capitalize"}}>{ev.status}</span>
+                  </div>
+                </td>
+                <td style={{padding:"10px 12px",textAlign:"center"}}>
+                  {ev.score!==null?<span style={{fontWeight:700,color:ev.score>=80?"#10b981":ev.score>=60?"#f59e0b":"#ef4444"}}>{ev.score}%</span>:<span style={{color:"#334155"}}>—</span>}
+                </td>
+                <td style={{padding:"10px 12px"}}>
+                  <button onClick={()=>del(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",display:"flex"}}><Trash size={12}/></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {evals.length===0&&<div style={{padding:"40px",textAlign:"center",color:"#334155"}}>No eval cases yet.</div>}
+      </div>
+      <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-end"}}>
+        <div style={{flex:1}}>
+          <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4}}>Test Input</label>
+          <input value={nr.input} onChange={e=>setNr(r=>({...r,input:e.target.value}))} placeholder="User message…"
+            style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"8px 10px",color:"white",fontSize:13,outline:"none"}}/>
+        </div>
+        <div style={{flex:1}}>
+          <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4}}>Expected Output</label>
+          <input value={nr.expected} onChange={e=>setNr(r=>({...r,expected:e.target.value}))} placeholder="What should it say?…"
+            style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"8px 10px",color:"white",fontSize:13,outline:"none"}}/>
+        </div>
+        <button onClick={add} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#6366f1",border:"none",borderRadius:8,color:"white",fontSize:13,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+          <Plus size={13}/>Add Test
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Build It Modal ───────────────────────────────────────────────────────────
+function BuildItModal({agents,bizName,onClose}) {
+  const [copied,setCopied]=useState(false);
+  const prompt = `Please build the following AI agent setup for ${bizName}:
+
+${agents.map((a,i)=>`═══ AGENT ${i+1}: ${a.name} ═══
+
+Business: ${a.bizName}
+Address:  ${a.bizAddress}
+Phone:    ${a.bizPhone}
+Trade:    ${a.trade}
+City:     ${a.city}
+Model:    ${a.model}
+
+SYSTEM PROMPT:
+${a.systemPrompt}
+
+WORKFLOW STEPS:
+${a.workflow.map((s,j)=>`  ${j+1}. [${s.type.toUpperCase()}] ${s.label}${s.desc?` — ${s.desc}`:""}${s.tool?` (Tool: ${s.tool})`:""}`).join("\n")}
+
+TOOLS NEEDED:
+${a.tools.join(", ")}
+
+EVAL TEST CASES:
+${a.evals.map(e=>`  Input: "${e.input}"\n  Expected: "${e.expected}"`).join("\n\n")}`).join("\n\n")}
+
+Please build this out fully:
+1. Make.com scenarios for each workflow
+2. A chat widget snippet I can embed on the website
+3. SMS notification setup using the workflow tool connections
+4. Any webhooks or API connections needed
+
+Start with Agent 1.`;
+
+  const copy=()=>{
+    navigator.clipboard.writeText(prompt).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:24}}>
+      <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:16,width:"100%",maxWidth:640,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #1e293b",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <p style={{margin:0,fontWeight:700,fontSize:15}}>Build It</p>
+            <p style={{margin:0,fontSize:12,color:"#64748b"}}>Copy this prompt → paste it into your Claude chat</p>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#64748b",display:"flex"}}><X size={18}/></button>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+          <pre style={{margin:0,fontSize:11,color:"#94a3b8",fontFamily:"'Fira Code','Menlo',monospace",whiteSpace:"pre-wrap",lineHeight:1.6}}>{prompt}</pre>
+        </div>
+        <div style={{padding:"14px 20px",borderTop:"1px solid #1e293b",display:"flex",gap:10}}>
+          <button onClick={copy}
+            style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px",background:copied?"#10b981":"#6366f1",border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:700,cursor:"pointer",transition:"background 0.2s"}}>
+            {copied?<><Check size={15}/>Copied!</>:<><Copy size={15}/>Copy Prompt</>}
+          </button>
+          <button onClick={onClose} style={{padding:"10px 20px",background:"#1e293b",border:"none",borderRadius:10,color:"#94a3b8",fontSize:14,cursor:"pointer"}}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Workspace View ───────────────────────────────────────────────────────────
+const TABS = [
+  {id:"overview",label:"Overview",  Icon:Board   },
+  {id:"prompt",  label:"Prompt",    Icon:PenLine },
+  {id:"workflow",label:"Workflow",  Icon:Layers  },
+  {id:"tools",   label:"Tools",     Icon:Wrench  },
+  {id:"evals",   label:"Evals",     Icon:Flask   },
+];
+
+function WorkspaceView({businesses, allAgents, setAllAgents, onDiscover}) {
+  // Group agents by business
+  const bizList = useMemo(()=>[...new Map(allAgents.map(a=>[a.bizId,{id:a.bizId,name:a.bizName,trade:a.trade}])).values()],[allAgents]);
+  const [activeBizId, setActiveBizId] = useState(bizList[0]?.id);
+  const [activeAgentId, setActiveAgentId] = useState(allAgents[0]?.id);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [showBuild, setShowBuild] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const bizAgents = allAgents.filter(a=>a.bizId===activeBizId);
+  const activeAgent = allAgents.find(a=>a.id===activeAgentId) || bizAgents[0];
+  const buildAgents = allAgents.filter(a=>a.bizId===activeBizId);
+
+  useEffect(()=>{
+    if(activeBizId && bizAgents.length>0 && !bizAgents.find(a=>a.id===activeAgentId)) {
+      setActiveAgentId(bizAgents[0].id);
+    }
+  },[activeBizId]);
+
+  const updateAgent = (patch) => {
+    setAllAgents(prev=>prev.map(a=>a.id===activeAgentId?{...a,...patch}:a));
+  };
+
+  return (
+    <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
+      {/* Sidebar */}
+      <div style={{width:sidebarOpen?220:0,flexShrink:0,background:"#0a0f1a",borderRight:"1px solid #1e293b",display:"flex",flexDirection:"column",overflow:"hidden",transition:"width 0.2s"}}>
+        <button onClick={onDiscover} style={{margin:"10px 10px 4px",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"#1e293b",border:"1px solid #334155",borderRadius:8,color:"#94a3b8",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>
+          <ArrowL size={12}/> Find More Businesses
+        </button>
+
+        <div style={{flex:1,overflowY:"auto",padding:"6px 8px"}}>
+          <p style={{fontSize:10,fontWeight:700,color:"#334155",textTransform:"uppercase",letterSpacing:"0.05em",padding:"6px 6px 4px",margin:0}}>Businesses</p>
+          {bizList.map(biz=>{
+            const isActive=activeBizId===biz.id;
+            const agts=allAgents.filter(a=>a.bizId===biz.id);
+            return (
+              <div key={biz.id} style={{marginBottom:4}}>
+                <div onClick={()=>{setActiveBizId(biz.id);setActiveAgentId(agts[0]?.id);setActiveTab("overview");}}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,cursor:"pointer",background:isActive?"rgba(99,102,241,0.15)":"transparent",border:`1px solid ${isActive?"rgba(99,102,241,0.4)":"transparent"}`}}>
+                  <Bot size={12} color={isActive?"#818cf8":"#475569"}/>
+                  <span style={{flex:1,fontSize:12,color:isActive?"white":"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{biz.name}</span>
+                </div>
+                {isActive && agts.map(a=>(
+                  <div key={a.id} onClick={()=>{setActiveAgentId(a.id);setActiveTab("overview");}}
+                    style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px 5px 24px",borderRadius:6,cursor:"pointer",background:activeAgentId===a.id?"rgba(99,102,241,0.08)":"transparent",marginTop:1}}>
+                    <Sparkles size={10} color={activeAgentId===a.id?"#818cf8":"#334155"}/>
+                    <span style={{fontSize:11,color:activeAgentId===a.id?"#a5b4fc":"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {/* Top bar */}
+        <div style={{borderBottom:"1px solid #1e293b",background:"rgba(10,15,26,0.8)",display:"flex",alignItems:"center",minHeight:48}}>
+          <button onClick={()=>setSidebarOpen(v=>!v)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",color:"#64748b",display:"flex"}}>
+            <Layers size={15}/>
+          </button>
+          {TABS.map(tab=>{
+            const active=activeTab===tab.id;
+            return (
+              <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"14px 14px",fontSize:13,fontWeight:500,background:"none",border:"none",cursor:"pointer",borderBottom:`2px solid ${active?"#6366f1":"transparent"}`,color:active?"white":"#64748b",whiteSpace:"nowrap"}}>
+                <tab.Icon size={13}/>{tab.label}
+              </button>
+            );
+          })}
+          <div style={{flex:1}}/>
+          {activeAgent && (
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 12px"}}>
+              <span style={{fontSize:11,color:"#475569",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{activeAgent.bizName}</span>
+              <Badge color="#6366f1">{activeAgent.name}</Badge>
+              <button onClick={()=>setShowBuild(true)}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:8,color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                <Hammer size={13}/> Build It
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div style={{flex:1,overflowY:"auto"}}>
+          {!activeAgent
+            ? <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"#334155"}}>Select a business from the sidebar</div>
+            : activeTab==="overview" ? <OverviewSection  agent={activeAgent} onUpdate={updateAgent}/>
+            : activeTab==="prompt"   ? <PromptSection    agent={activeAgent} onUpdate={updateAgent}/>
+            : activeTab==="workflow" ? <WorkflowSection  agent={activeAgent} onUpdate={updateAgent}/>
+            : activeTab==="tools"    ? <ToolsSection     agent={activeAgent} onUpdate={updateAgent}/>
+            :                          <EvalsSection      agent={activeAgent} onUpdate={updateAgent}/>
+          }
+        </div>
+      </div>
+
+      {showBuild && <BuildItModal agents={buildAgents} bizName={activeBizId?bizList.find(b=>b.id===activeBizId)?.name:"this business"} onClose={()=>setShowBuild(false)}/>}
+    </div>
+  );
+}
+
+// ── Pipeline View ─────────────────────────────────────────────────────────────
+const PIPE_STAGES  = ["Discovered","Reached Out","Responded","Demo Scheduled","Closed Won","Building"];
+const PIPE_COLORS  = {
+  "Discovered":"#475569","Reached Out":"#3b82f6","Responded":"#f59e0b",
+  "Demo Scheduled":"#8b5cf6","Closed Won":"#10b981","Building":"#6366f1",
+};
+
+function PipelineView({businesses, pipeline, setPipeline}) {
+  const getStage = id => pipeline[id] || "Discovered";
+  const moveTo   = (id, stage) => setPipeline(prev=>({...prev,[id]:stage}));
+  const idx      = stage => PIPE_STAGES.indexOf(stage);
+
+  if(!businesses.length) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:"#334155"}}>
+      <Search size={36}/><p style={{margin:0,fontSize:14}}>Discover businesses first to build your pipeline</p>
+    </div>
+  );
+
+  return (
+    <div style={{padding:"20px",height:"100%",overflowX:"auto",overflowY:"hidden",boxSizing:"border-box"}}>
+      <div style={{display:"flex",gap:14,height:"100%",minWidth:PIPE_STAGES.length*224}}>
+        {PIPE_STAGES.map(stage=>{
+          const bizInStage = businesses.filter(b=>getStage(b.id)===stage);
+          const color = PIPE_COLORS[stage];
+          return (
+            <div key={stage} style={{flex:"0 0 208px",display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",flexShrink:0}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}}/>
+                <span style={{fontSize:12,fontWeight:700,color:"white",flex:1}}>{stage}</span>
+                <span style={{fontSize:11,color:"#64748b",background:"#1e293b",borderRadius:10,padding:"1px 7px"}}>{bizInStage.length}</span>
+              </div>
+              <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:8}}>
+                {bizInStage.map(biz=>(
+                  <div key={biz.id} style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:10,padding:"12px"}}>
+                    <p style={{margin:"0 0 2px",fontSize:12,fontWeight:700,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{biz.name}</p>
+                    <p style={{margin:"0 0 7px",fontSize:11,color:"#64748b"}}>{biz.trade.split("/")[0].trim()} · {biz.city.split(",")[0]}</p>
+                    <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:9}}>
+                      <Star size={10} color="#f59e0b" style={{fill:"#f59e0b"}}/><span style={{fontSize:11,color:"#94a3b8"}}>{biz.rating} ({biz.reviews})</span>
+                    </div>
+                    <div style={{display:"flex",gap:4}}>
+                      {idx(stage)>0&&(
+                        <button onClick={()=>moveTo(biz.id,PIPE_STAGES[idx(stage)-1])}
+                          style={{flex:1,padding:"4px",background:"#1e293b",border:"1px solid #334155",borderRadius:6,color:"#64748b",fontSize:10,cursor:"pointer"}}>← Back</button>
+                      )}
+                      {idx(stage)<PIPE_STAGES.length-1&&(
+                        <button onClick={()=>moveTo(biz.id,PIPE_STAGES[idx(stage)+1])}
+                          style={{flex:2,padding:"4px 6px",background:color+"22",border:`1px solid ${color}44`,borderRadius:6,color,fontSize:10,fontWeight:600,cursor:"pointer",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          → {PIPE_STAGES[idx(stage)+1]}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {bizInStage.length===0&&(
+                  <div style={{border:"2px dashed #1e293b",borderRadius:10,padding:"24px 8px",textAlign:"center",color:"#1e293b",fontSize:11}}>empty</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Outreach View ─────────────────────────────────────────────────────────────
+function OutreachView({businesses, outreachSent, setOutreachSent, userProfile}) {
+  const [activeBizId, setActiveBizId] = useState(businesses[0]?.id || null);
+  const [channel,     setChannel]     = useState("email");
+  const [copied,      setCopied]      = useState(false);
+
+  const biz = businesses.find(b=>b.id===activeBizId);
+  const CHANNELS = [
+    {id:"email",     label:"Email",        Icon:Send},
+    {id:"phone",     label:"Phone Script", Icon:Phone},
+    {id:"sms",       label:"SMS",          Icon:Msg},
+    {id:"linkedin",  label:"LinkedIn",     Icon:Globe},
+    {id:"instagram", label:"Instagram",    Icon:Star},
+  ];
+
+  const sentKey    = (bId,ch) => `${bId}:${ch}`;
+  const isSent     = ch => outreachSent.has(sentKey(activeBizId,ch));
+  const toggleSent = ch => setOutreachSent(prev=>{
+    const s=new Set(prev); const k=sentKey(activeBizId,ch);
+    s.has(k)?s.delete(k):s.add(k); return s;
+  });
+
+  const GENS = {email:genEmailTemplate,phone:genPhoneScript,sms:genSMSTemplate,linkedin:genLinkedInTemplate,instagram:genInstagramTemplate};
+  const getTemplate = ch => biz ? (GENS[ch]||genEmailTemplate)(biz,userProfile) : "";
+
+  const copy = () => {
+    navigator.clipboard.writeText(getTemplate(channel)).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
+  };
+
+  if(!businesses.length) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:"#334155"}}>
+      <Search size={36}/><p style={{margin:0,fontSize:14}}>Discover businesses first to generate outreach templates</p>
+    </div>
+  );
+
+  const cat       = biz ? getCat(biz.trade) : "GENERAL";
+  const pain      = PAIN_POINTS[cat] || PAIN_POINTS.GENERAL;
+  const roi       = ROI_LINES[cat]   || ROI_LINES.GENERAL;
+  const sentCount = CHANNELS.filter(c=>isSent(c.id)).length;
+
+  return (
+    <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
+      {/* Sidebar */}
+      <div style={{width:220,flexShrink:0,background:"#0a0f1a",borderRight:"1px solid #1e293b",overflowY:"auto",padding:"10px 8px"}}>
+        <p style={{fontSize:10,fontWeight:700,color:"#334155",textTransform:"uppercase",letterSpacing:"0.05em",padding:"4px 8px",margin:"0 0 6px"}}>Businesses</p>
+        {businesses.map(b=>{
+          const isActive=activeBizId===b.id;
+          const sc=CHANNELS.filter(c=>outreachSent.has(sentKey(b.id,c.id))).length;
+          return (
+            <div key={b.id} onClick={()=>setActiveBizId(b.id)}
+              style={{padding:"8px 10px",borderRadius:8,cursor:"pointer",marginBottom:4,background:isActive?"rgba(99,102,241,0.15)":"transparent",border:`1px solid ${isActive?"rgba(99,102,241,0.4)":"transparent"}`}}>
+              <p style={{margin:"0 0 2px",fontSize:12,fontWeight:isActive?700:500,color:isActive?"white":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.name}</p>
+              <p style={{margin:0,fontSize:10,color:"#475569"}}>{b.trade.split("/")[0].trim()}</p>
+              {sc>0&&<div style={{marginTop:4,display:"flex",alignItems:"center",gap:3}}>
+                {Array.from({length:sc}).map((_,i)=><div key={i} style={{width:5,height:5,borderRadius:"50%",background:"#10b981"}}/>)}
+                <span style={{fontSize:9,color:"#10b981",marginLeft:2}}>{sc}/5</span>
+              </div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Main */}
+      <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+        {biz ? (<>
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18,paddingBottom:16,borderBottom:"1px solid #1e293b"}}>
+            <div>
+              <h2 style={{margin:"0 0 4px",fontSize:18,fontWeight:800}}>{biz.name}</h2>
+              <p style={{margin:0,fontSize:13,color:"#64748b"}}>{biz.trade} · {biz.city} · {biz.phone}</p>
+              <div style={{marginTop:6,display:"flex",alignItems:"center",gap:8}}>
+                <Stars rating={biz.rating}/>
+                <span style={{fontSize:11,color:"#334155"}}>|</span>
+                <span style={{fontSize:11,color:"#64748b"}}>{sentCount}/5 channels contacted</span>
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:11,color:"#64748b"}}>Est. monthly value</div>
+              <div style={{fontSize:18,fontWeight:800,color:"#10b981"}}>{roi.monthly}</div>
+            </div>
+          </div>
+
+          {/* Pain points */}
+          <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"14px 16px",marginBottom:18}}>
+            <p style={{margin:"0 0 10px",fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Their Pain Points</p>
+            {pain.map((p,i)=>(
+              <div key={i} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:7}}>
+                <span style={{color:"#ef4444",fontSize:12,flexShrink:0,marginTop:1}}>✕</span>
+                <span style={{fontSize:12,color:"#94a3b8",lineHeight:1.5}}>{p}</span>
+              </div>
+            ))}
+            <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #1e293b",display:"flex",alignItems:"flex-start",gap:8}}>
+              <Check size={13} color="#10b981" style={{marginTop:1,flexShrink:0}}/>
+              <span style={{fontSize:12,color:"#10b981",lineHeight:1.5}}>{roi.note}</span>
+            </div>
+          </div>
+
+          {/* Channel tabs */}
+          <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+            {CHANNELS.map(c=>(
+              <button key={c.id} onClick={()=>setChannel(c.id)}
+                style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:"1px solid",borderColor:channel===c.id?"#6366f1":"#1e293b",background:channel===c.id?"rgba(99,102,241,0.15)":"transparent",color:channel===c.id?"#818cf8":isSent(c.id)?"#10b981":"#64748b",fontSize:12,cursor:"pointer",fontWeight:channel===c.id?700:400}}>
+                <c.Icon size={11}/>{c.label}
+                {isSent(c.id)&&<span style={{width:5,height:5,borderRadius:"50%",background:"#10b981",marginLeft:2,flexShrink:0}}/>}
+              </button>
+            ))}
+          </div>
+
+          {/* Template */}
+          <div style={{background:"#0a0f1a",border:"1px solid #1e293b",borderRadius:12}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #1e293b",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span style={{fontSize:12,fontWeight:600,color:"#64748b"}}>{CHANNELS.find(c=>c.id===channel)?.label} Template</span>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>toggleSent(channel)}
+                  style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",background:isSent(channel)?"rgba(16,185,129,0.15)":"#1e293b",border:`1px solid ${isSent(channel)?"#10b981":"#334155"}`,borderRadius:7,color:isSent(channel)?"#10b981":"#94a3b8",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                  {isSent(channel)?<><Check size={11}/>Sent</>:<><Send size={11}/>Mark Sent</>}
+                </button>
+                <button onClick={copy}
+                  style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",background:copied?"rgba(16,185,129,0.15)":"rgba(99,102,241,0.15)",border:`1px solid ${copied?"#10b981":"rgba(99,102,241,0.4)"}`,borderRadius:7,color:copied?"#10b981":"#818cf8",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                  {copied?<><Check size={11}/>Copied!</>:<><Copy size={11}/>Copy</>}
+                </button>
+              </div>
+            </div>
+            <pre style={{margin:0,padding:"16px",fontSize:12,color:"#cbd5e1",fontFamily:"'Fira Code','Menlo',monospace",whiteSpace:"pre-wrap",lineHeight:1.7,maxHeight:440,overflowY:"auto"}}>{getTemplate(channel)}</pre>
+          </div>
+        </>) : (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"#334155"}}>Select a business from the sidebar</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Proposal View ─────────────────────────────────────────────────────────────
+function ProposalView({businesses, allAgents, userProfile}) {
+  const [activeBizId, setActiveBizId] = useState(businesses[0]?.id || null);
+  const [copied,      setCopied]      = useState(false);
+
+  const biz    = businesses.find(b=>b.id===activeBizId);
+  const agents = allAgents.filter(a=>a.bizId===activeBizId);
+  const cat    = biz ? getCat(biz.trade) : "GENERAL";
+  const roi    = ROI_LINES[cat] || ROI_LINES.GENERAL;
+
+  const TIERS = [
+    {name:"Starter",    color:"#3b82f6", setup:"$997",         monthly:"$297/mo", badge:"Low risk entry",
+     includes:["1 AI agent (Booking or FAQ)","SMS + email notifications","CRM integration","30-day setup & testing","Email support"]},
+    {name:"Growth",     color:"#8b5cf6", setup:"$2,500",       monthly:"$497/mo", badge:"Most popular",
+     includes:["2 AI agents (Booking + Follow-Up)","Emergency routing & dispatch","Full Make.com automation","Monthly optimization reviews","Priority support"]},
+    {name:"Full Stack", color:"#10b981", setup:"$5,000–$8,000",monthly:"$797/mo", badge:"Complete system",
+     includes:[`All ${agents.length||2} AI agents fully configured`,"Complete automation suite","Review generation system","Quarterly strategy sessions","White-glove onboarding","Dedicated Slack channel"]},
+  ];
+
+  const proposalText = biz ? `PROPOSAL FOR ${biz.name.toUpperCase()}
+${"=".repeat(50)}
+Prepared by: ${userProfile.name||"[Your Name]"}${userProfile.company?` · ${userProfile.company}`:""}
+Date: ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
+
+OVERVIEW
+${biz.name} is a ${biz.trade} business in ${biz.city} with a ${biz.rating}★ rating (${biz.reviews} reviews). This proposal outlines an AI agent system to automate bookings, follow-ups, and customer communication — capturing revenue currently being lost to competitors who respond faster.
+
+AGENT STACK
+${agents.map((a,i)=>`${i+1}. ${a.name}\n   ${a.description}\n   Tools: ${a.tools.join(", ")}`).join("\n\n")}
+
+ROI ESTIMATE
+  Monthly revenue recovery: ${roi.monthly}
+  ${roi.stat}
+  ${roi.note}
+
+INVESTMENT OPTIONS
+
+  STARTER — $997 setup + $297/mo
+  Best for: Getting started, low risk
+  • 1 AI agent configured and deployed
+  • SMS notifications and CRM integration
+
+  GROWTH — $2,500 setup + $497/mo
+  Best for: Most businesses
+  • 2 agents, full automation flows, monthly optimization
+
+  FULL STACK — $5,000–$8,000 setup + $797/mo
+  Best for: Maximum ROI, complete hands-off system
+  • All ${agents.length||2} agents, complete automation suite, dedicated support
+
+NEXT STEPS
+1. 15-min discovery call to confirm scope
+2. Proposal refinement with exact integration specs
+3. Setup begins within 5 business days of contract
+4. Live in 2–3 weeks
+
+${userProfile.name||"[Your Name]"}
+${userProfile.email||"[Your Email]"}
+${userProfile.phone||"[Your Phone]"}` : "";
+
+  const copy = () => {
+    navigator.clipboard.writeText(proposalText).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
+  };
+
+  if(!businesses.length) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:"#334155"}}>
+      <FileT size={36}/><p style={{margin:0,fontSize:14}}>Discover businesses first to generate proposals</p>
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
+      {/* Sidebar */}
+      <div style={{width:220,flexShrink:0,background:"#0a0f1a",borderRight:"1px solid #1e293b",overflowY:"auto",padding:"10px 8px"}}>
+        <p style={{fontSize:10,fontWeight:700,color:"#334155",textTransform:"uppercase",letterSpacing:"0.05em",padding:"4px 8px",margin:"0 0 6px"}}>Businesses</p>
+        {businesses.map(b=>{
+          const isActive=activeBizId===b.id;
+          return (
+            <div key={b.id} onClick={()=>setActiveBizId(b.id)}
+              style={{padding:"8px 10px",borderRadius:8,cursor:"pointer",marginBottom:4,background:isActive?"rgba(99,102,241,0.15)":"transparent",border:`1px solid ${isActive?"rgba(99,102,241,0.4)":"transparent"}`}}>
+              <p style={{margin:"0 0 2px",fontSize:12,fontWeight:isActive?700:500,color:isActive?"white":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.name}</p>
+              <p style={{margin:0,fontSize:10,color:"#475569"}}>{b.trade.split("/")[0].trim()}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Main */}
+      {biz ? (
+        <div style={{flex:1,overflowY:"auto",padding:"24px"}}>
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22}}>
+            <div>
+              <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800}}>Proposal: {biz.name}</h2>
+              <p style={{margin:0,fontSize:13,color:"#64748b"}}>{biz.trade} · {biz.city} · {biz.rating}★</p>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={copy}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:copied?"rgba(16,185,129,0.15)":"rgba(99,102,241,0.15)",border:`1px solid ${copied?"#10b981":"rgba(99,102,241,0.4)"}`,borderRadius:9,color:copied?"#10b981":"#818cf8",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                {copied?<><Check size={13}/>Copied!</>:<><Copy size={13}/>Copy Proposal</>}
+              </button>
+              <button onClick={()=>window.print()}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#1e293b",border:"1px solid #334155",borderRadius:9,color:"#94a3b8",fontSize:12,cursor:"pointer"}}>
+                <FileT size={13}/>Print
+              </button>
+            </div>
+          </div>
+
+          {/* ROI cards */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:22}}>
+            {[{l:"Monthly Revenue Recovery",v:roi.monthly,c:"#10b981"},{l:"Key Result",v:roi.stat,c:"#6366f1"},{l:"Why It Works",v:roi.note,c:"#f59e0b"}].map(({l,v,c})=>(
+              <div key={l} style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"14px 16px"}}>
+                <p style={{margin:"0 0 6px",fontSize:11,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</p>
+                <p style={{margin:0,fontSize:13,fontWeight:700,color:c,lineHeight:1.4}}>{v}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Agent stack */}
+          <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"16px",marginBottom:22}}>
+            <p style={{margin:"0 0 14px",fontSize:13,fontWeight:700,color:"white"}}>Agent Stack for {biz.name}</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {agents.map((a,i)=>(
+                <div key={a.id} style={{display:"flex",gap:12,padding:"12px",background:"#080f1a",borderRadius:10,border:"1px solid #1e293b"}}>
+                  <div style={{width:32,height:32,borderRadius:10,background:"rgba(99,102,241,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <span style={{fontSize:12,fontWeight:800,color:"#818cf8"}}>{i+1}</span>
+                  </div>
+                  <div style={{flex:1}}>
+                    <p style={{margin:"0 0 3px",fontSize:13,fontWeight:700,color:"white"}}>{a.name}</p>
+                    <p style={{margin:"0 0 7px",fontSize:11,color:"#64748b",lineHeight:1.5}}>{a.description}</p>
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {a.tools.map(t=>(
+                        <span key={t} style={{fontSize:10,padding:"2px 8px",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,color:"#818cf8"}}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pricing tiers */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
+            {TIERS.map(tier=>(
+              <div key={tier.name} style={{background:"#0f172a",border:`1px solid ${tier.color}44`,borderRadius:14,overflow:"hidden"}}>
+                <div style={{padding:"14px 16px",borderBottom:`1px solid ${tier.color}22`,background:`${tier.color}11`}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:14,fontWeight:800,color:"white"}}>{tier.name}</span>
+                    <span style={{fontSize:10,color:tier.color,background:`${tier.color}22`,padding:"2px 8px",borderRadius:10}}>{tier.badge}</span>
+                  </div>
+                  <div>
+                    <span style={{fontSize:20,fontWeight:800,color:tier.color}}>{tier.setup}</span>
+                    <span style={{fontSize:12,color:"#64748b"}}> setup + </span>
+                    <span style={{fontSize:14,fontWeight:700,color:"white"}}>{tier.monthly}</span>
+                  </div>
+                </div>
+                <div style={{padding:"14px 16px"}}>
+                  {tier.includes.map((item,i)=>(
+                    <div key={i} style={{display:"flex",gap:7,alignItems:"flex-start",marginBottom:8}}>
+                      <Check size={12} color={tier.color} style={{marginTop:2,flexShrink:0}}/>
+                      <span style={{fontSize:12,color:"#94a3b8",lineHeight:1.4}}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{padding:"12px 16px",background:"#0f172a",border:"1px solid #1e293b",borderRadius:10,fontSize:12,color:"#64748b",lineHeight:1.6}}>
+            All plans include a 30-day setup period. Live within 2–3 weeks of contract signing. Month-to-month after an initial 3-month commitment. No long-term lock-ins.
+          </div>
+        </div>
+      ) : (
+        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"#334155"}}>Select a business from the sidebar</div>
+      )}
+    </div>
+  );
+}
+
+// ── Profile Modal ─────────────────────────────────────────────────────────────
+function ProfileModal({profile, setProfile, onClose}) {
+  const [form, setForm] = useState({...profile});
+  const save = () => { setProfile(form); onClose(); };
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:24}}>
+      <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:16,width:"100%",maxWidth:440}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #1e293b",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <p style={{margin:0,fontWeight:700,fontSize:15}}>Your Profile</p>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#64748b",display:"flex"}}><X size={18}/></button>
+        </div>
+        <div style={{padding:"20px",display:"flex",flexDirection:"column",gap:14}}>
+          <p style={{margin:0,fontSize:12,color:"#475569",lineHeight:1.5}}>Your info is injected into outreach templates and proposals automatically.</p>
+          {[
+            {k:"name",    l:"Your Name",    p:"John Smith"},
+            {k:"company", l:"Company",      p:"AI Solutions Co."},
+            {k:"email",   l:"Email",        p:"john@example.com"},
+            {k:"phone",   l:"Phone",        p:"(555) 123-4567"},
+          ].map(f=>(
+            <div key={f.k}>
+              <label style={{fontSize:11,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:5}}>{f.l}</label>
+              <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.p}
+                style={{width:"100%",background:"#1e293b",border:"1px solid #334155",borderRadius:9,padding:"9px 12px",color:"white",fontSize:13,outline:"none"}}/>
+            </div>
+          ))}
+        </div>
+        <div style={{padding:"14px 20px",borderTop:"1px solid #1e293b",display:"flex",gap:10}}>
+          <button onClick={save} style={{flex:1,padding:"10px",background:"#6366f1",border:"none",borderRadius:9,color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>Save Profile</button>
+          <button onClick={onClose} style={{padding:"10px 20px",background:"#1e293b",border:"none",borderRadius:9,color:"#94a3b8",fontSize:14,cursor:"pointer"}}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Top Navigation ────────────────────────────────────────────────────────────
+function TopNav({mainTab, setMainTab, bizCount, agentCount, userProfile, onProfileClick}) {
+  const TABS = [
+    {id:"discover", label:"Discover",  Icon:Search},
+    {id:"agents",   label:"Agents",    Icon:Bot},
+    {id:"outreach", label:"Outreach",  Icon:Send},
+    {id:"pipeline", label:"Pipeline",  Icon:Board},
+    {id:"proposal", label:"Proposal",  Icon:FileT},
+  ];
+  const initials = userProfile.name
+    ? userProfile.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()
+    : "ME";
+  const hasData = bizCount > 0;
+
+  return (
+    <div style={{display:"flex",alignItems:"center",borderBottom:"1px solid #1e293b",background:"#080e1b",height:50,flexShrink:0,paddingRight:12}}>
+      {/* Logo */}
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 14px 0 12px",borderRight:"1px solid #1e293b",marginRight:4,height:"100%"}}>
+        <div style={{width:26,height:26,borderRadius:8,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <Cpu size={13} color="white"/>
+        </div>
+        <span style={{fontWeight:800,fontSize:13,color:"white",whiteSpace:"nowrap"}}>Agent Architect</span>
+      </div>
+
+      {/* Tabs */}
+      {TABS.map(tab=>{
+        const active = mainTab===tab.id;
+        const enabled = tab.id==="discover" || hasData;
+        return (
+          <button key={tab.id} onClick={()=>enabled&&setMainTab(tab.id)}
+            style={{display:"flex",alignItems:"center",gap:5,padding:"0 14px",height:"100%",fontSize:12,fontWeight:active?700:400,background:"none",border:"none",cursor:enabled?"pointer":"default",borderBottom:`2px solid ${active?"#6366f1":"transparent"}`,color:active?"white":enabled?"#94a3b8":"#334155",whiteSpace:"nowrap",transition:"color 0.15s"}}>
+            <tab.Icon size={12}/>
+            {tab.label}
+            {tab.id==="agents"&&agentCount>0&&(
+              <span style={{fontSize:10,color:"#6366f1",background:"rgba(99,102,241,0.15)",borderRadius:10,padding:"0 5px",marginLeft:2}}>{agentCount}</span>
+            )}
+            {tab.id==="pipeline"&&hasData&&(
+              <span style={{fontSize:10,color:"#64748b",background:"#1e293b",borderRadius:10,padding:"0 5px",marginLeft:2}}>{bizCount}</span>
+            )}
+          </button>
+        );
+      })}
+
+      <div style={{flex:1}}/>
+
+      {/* Stats + profile */}
+      {hasData&&<span style={{fontSize:11,color:"#334155",marginRight:14}}>{bizCount} biz · {agentCount} agents</span>}
+      <button onClick={onProfileClick}
+        style={{width:32,height:32,borderRadius:"50%",background:userProfile.name?"linear-gradient(135deg,#6366f1,#8b5cf6)":"#1e293b",border:"1px solid #334155",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        {userProfile.name
+          ? <span style={{fontSize:11,fontWeight:700,color:"white"}}>{initials}</span>
+          : <Settings size={13} color="#64748b"/>
+        }
+      </button>
+    </div>
+  );
+}
+
+// ── App Root ────────────────────────────────────────────────────────────────
+function App() {
+  const [mainTab,      setMainTab]      = useState("discover");
+  const [allAgents,    setAllAgents]    = useState([]);
+  const [businesses,   setBiz]          = useState([]);
+  const [pipeline,     setPipeline]     = useState({});
+  const [outreachSent, setOutreachSent] = useState(new Set());
+  const [userProfile,  setUserProfile]  = useState({name:"",company:"",email:"",phone:""});
+  const [showProfile,  setShowProfile]  = useState(false);
+
+  const handleBuild = (selected) => {
+    const newAgents = selected.flatMap(biz=>generateAgents(biz));
+    setBiz(prev=>[...prev,...selected.filter(b=>!prev.find(p=>p.id===b.id))]);
+    setAllAgents(prev=>[...prev,...newAgents]);
+    setPipeline(prev=>{
+      const next={...prev};
+      selected.forEach(b=>{ if(!next[b.id]) next[b.id]="Discovered"; });
+      return next;
+    });
+    setMainTab("agents");
+  };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden"}}>
+      <TopNav
+        mainTab={mainTab}
+        setMainTab={setMainTab}
+        bizCount={businesses.length}
+        agentCount={allAgents.length}
+        userProfile={userProfile}
+        onProfileClick={()=>setShowProfile(true)}
+      />
+      <div style={{flex:1,overflow:"hidden"}}>
+        {mainTab==="discover"  && <DiscoverView   onBuild={handleBuild}/>}
+        {mainTab==="agents"    && <WorkspaceView  businesses={businesses} allAgents={allAgents} setAllAgents={setAllAgents} onDiscover={()=>setMainTab("discover")}/>}
+        {mainTab==="outreach"  && <OutreachView   businesses={businesses} outreachSent={outreachSent} setOutreachSent={setOutreachSent} userProfile={userProfile}/>}
+        {mainTab==="pipeline"  && <PipelineView   businesses={businesses} pipeline={pipeline} setPipeline={setPipeline}/>}
+        {mainTab==="proposal"  && <ProposalView   businesses={businesses} allAgents={allAgents} userProfile={userProfile}/>}
+      </div>
+      {showProfile && <ProfileModal profile={userProfile} setProfile={setUserProfile} onClose={()=>setShowProfile(false)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
